@@ -2,27 +2,38 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, AlertCircle, Filter } from "lucide-react";
 import { FraudReport } from "@/types/fraudReport";
 import FraudReportCard from "./FraudReportCard";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 interface ReportsListProps {
   reports: FraudReport[];
   filter?: (report: FraudReport) => boolean;
   title?: string;
+  showStatusFilter?: boolean;
 }
 
-const ReportsList: React.FC<ReportsListProps> = ({ reports, filter, title }) => {
+const ReportsList: React.FC<ReportsListProps> = ({ reports, filter, title, showStatusFilter = false }) => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "verified" | "pending">("all");
   
-  const filteredReports = searchQuery
+  const filteredBySearch = searchQuery
     ? reports.filter(report => 
         (report.upiId && report.upiId.toLowerCase().includes(searchQuery.toLowerCase())) ||
         (report.url && report.url.toLowerCase().includes(searchQuery.toLowerCase())) ||
         report.description.toLowerCase().includes(searchQuery.toLowerCase()))
     : reports;
 
-  const finalReports = filter ? filteredReports.filter(filter) : filteredReports;
+  const filteredByStatus = statusFilter === "all" 
+    ? filteredBySearch 
+    : filteredBySearch.filter(report => report.status === statusFilter);
+
+  const finalReports = filter ? filteredByStatus.filter(filter) : filteredByStatus;
+
+  const verifiedCount = reports.filter(r => r.status === "verified").length;
+  const pendingCount = reports.filter(r => r.status === "pending").length;
 
   return (
     <>
@@ -35,6 +46,38 @@ const ReportsList: React.FC<ReportsListProps> = ({ reports, filter, title }) => 
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
+
+      {showStatusFilter && (
+        <div className="flex items-center gap-2 mb-4">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Filter:</span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={statusFilter === "all" ? "default" : "outline"}
+              onClick={() => setStatusFilter("all")}
+            >
+              All ({reports.length})
+            </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "verified" ? "default" : "outline"}
+              onClick={() => setStatusFilter("verified")}
+              className="flex items-center gap-1"
+            >
+              <AlertCircle className="h-3 w-3" /> 
+              Verified ({verifiedCount})
+            </Button>
+            <Button
+              size="sm"
+              variant={statusFilter === "pending" ? "default" : "outline"}
+              onClick={() => setStatusFilter("pending")}
+            >
+              Pending ({pendingCount})
+            </Button>
+          </div>
+        </div>
+      )}
 
       {finalReports.length > 0 ? (
         <div>
