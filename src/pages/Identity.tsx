@@ -84,7 +84,7 @@ const Identity = () => {
         <p className="text-muted-foreground">Manage your secure decentralized identity (DID)</p>
       </div>
 
-      <Tabs defaultValue="overview" className="w-full" onValueChange={setSelectedTab}>
+      <Tabs defaultValue={selectedTab} className="w-full" onValueChange={setSelectedTab}>
         <TabsList className="grid grid-cols-3 mb-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="create">Create Identity</TabsTrigger>

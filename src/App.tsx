@@ -9,6 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import Identity from "./pages/Identity";
 import Consents from "./pages/Consents";
 import FraudReports from "./pages/FraudReports";
+import UrlCheckerPage from "./pages/UrlCheckerPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,11 @@ const App = () => (
           <Route path="/fraud-reports" element={
             <MainLayout>
               <FraudReports />
+            </MainLayout>
+          } />
+          <Route path="/url-checker" element={
+            <MainLayout>
+              <UrlCheckerPage />
             </MainLayout>
           } />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
