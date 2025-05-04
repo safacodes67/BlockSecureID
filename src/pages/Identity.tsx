@@ -341,6 +341,27 @@ const Identity = () => {
     }
   };
   
+  // Add the missing handleFacialRecognition function
+  const handleFacialRecognition = () => {
+    // Open the facial recognition dialog
+    setShowFaceCapture(true);
+    
+    // Simulate face capture success after a delay (in a real app, this would be an actual face capture process)
+    setTimeout(() => {
+      // Update the face registration status in the database
+      updateFaceRegistrationStatus();
+      
+      // Close the dialog
+      setShowFaceCapture(false);
+      
+      // Show success message
+      toast({
+        title: "Face Registration Successful",
+        description: "Your face has been registered for account recovery.",
+      });
+    }, 3000); // Simulating a 3-second capture process
+  };
+  
   // Placeholder function to simulate creating identity
   const handleCreateIdentity = (e: React.FormEvent) => {
     e.preventDefault();
