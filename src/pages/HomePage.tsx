@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,11 +9,13 @@ import { ArrowRight, User, Banknote, Wallet, Shield, Link } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { connectWallet } from "@/lib/blockchain";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const HomePage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("user");
+  const [isLoading, setIsLoading] = useState(false);
   
   // User authentication states
   const [userName, setUserName] = useState("");
@@ -29,6 +31,14 @@ const HomePage = () => {
   // Mnemonic phrase (would be generated securely in a production app)
   const [mnemonicPhrase, setMnemonicPhrase] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
+
+  useEffect(() => {
+    // Check if wallet is already connected in localStorage
+    const savedWallet = localStorage.getItem("walletAddress");
+    if (savedWallet) {
+      setWalletAddress(savedWallet);
+    }
+  }, []);
 
   // Function to generate a secure 12-word mnemonic phrase
   const generateMnemonic = () => {
@@ -53,9 +63,47 @@ const HomePage = () => {
     return selectedWords.join(" ");
   };
 
+  // Function to validate manager code against database
+  const validateManagerCode = async (code) => {
+    try {
+      const { data, error } = await supabase
+        .from('manager_codes')
+        .select('*')
+        .eq('code', code)
+        .eq('used', false)
+        .single();
+      
+      if (error) {
+        throw error;
+      }
+      
+      return data ? true : false;
+    } catch (error) {
+      console.error('Error validating manager code:', error);
+      return false;
+    }
+  };
+
+  // Function to mark manager code as used
+  const markManagerCodeAsUsed = async (code) => {
+    try {
+      const { error } = await supabase
+        .from('manager_codes')
+        .update({ used: true })
+        .eq('code', code);
+      
+      if (error) {
+        console.error('Error marking manager code as used:', error);
+      }
+    } catch (error) {
+      console.error('Error marking manager code as used:', error);
+    }
+  };
+
   // Handle user registration
-  const handleUserRegister = (e: React.FormEvent) => {
+  const handleUserRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
     // Validate form
     if (!userName || !userEmail || !userMobile) {
@@ -64,37 +112,62 @@ const HomePage = () => {
         description: "Please fill in all fields",
         variant: "destructive",
       });
+      setIsLoading(false);
       return;
     }
     
-    // Generate mnemonic phrase
-    const mnemonic = generateMnemonic();
-    setMnemonicPhrase(mnemonic);
-    
-    toast({
-      title: "Registration Successful",
-      description: "Your identity has been created.",
-    });
-    
-    // In production, store this in Supabase
-    localStorage.setItem("userAuth", JSON.stringify({
-      type: "user",
-      name: userName,
-      email: userEmail,
-      mobile: userMobile,
-      mnemonic: mnemonic,
-      timestamp: new Date().toISOString()
-    }));
-    
-    // Display success with a slight delay to show the toast
-    setTimeout(() => {
-      navigate("/dashboard");
-    }, 2000);
+    try {
+      // Generate mnemonic phrase
+      const mnemonic = generateMnemonic();
+      setMnemonicPhrase(mnemonic);
+      
+      // Store in Supabase
+      const { data, error } = await supabase
+        .from('user_identities')
+        .insert([
+          {
+            name: userName,
+            email: userEmail,
+            mobile: userMobile,
+            mnemonic_phrase: mnemonic
+          }
+        ])
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+      
+      toast({
+        title: "Registration Successful",
+        description: "Your identity has been created and stored in the database.",
+      });
+      
+      // Store in localStorage for session
+      localStorage.setItem("userAuth", JSON.stringify({
+        type: "user",
+        name: userName,
+        email: userEmail,
+        mobile: userMobile,
+        mnemonic: mnemonic,
+        timestamp: new Date().toISOString()
+      }));
+    } catch (error: any) {
+      console.error('Error creating user identity:', error);
+      toast({
+        title: "Registration Failed",
+        description: error.message || "Failed to create your identity",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Handle bank registration
-  const handleBankRegister = (e: React.FormEvent) => {
+  const handleBankRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
     // Validate form
     if (!bankName || !branchName || !ifscCode || !managerCode) {
@@ -103,42 +176,72 @@ const HomePage = () => {
         description: "Please fill in all fields",
         variant: "destructive",
       });
+      setIsLoading(false);
       return;
     }
     
-    // Validate manager code (in production, this would check against a database)
-    if (managerCode !== "MANAGER123") {
+    try {
+      // Validate manager code
+      const isValidCode = await validateManagerCode(managerCode);
+      if (!isValidCode) {
+        toast({
+          title: "Authorization Failed",
+          description: "Invalid or already used manager code",
+          variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Generate mnemonic phrase
+      const mnemonic = generateMnemonic();
+      setMnemonicPhrase(mnemonic);
+      
+      // Store in Supabase
+      const { data, error } = await supabase
+        .from('bank_entities')
+        .insert([
+          {
+            bank_name: bankName,
+            branch_name: branchName,
+            ifsc_code: ifscCode,
+            manager_code: managerCode,
+            mnemonic_phrase: mnemonic
+          }
+        ])
+        .select();
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Mark manager code as used
+      await markManagerCodeAsUsed(managerCode);
+      
       toast({
-        title: "Authorization Failed",
-        description: "Invalid manager code",
+        title: "Bank Registration Successful",
+        description: "Bank identity has been created and stored in the database.",
+      });
+      
+      // Store in localStorage for session
+      localStorage.setItem("bankAuth", JSON.stringify({
+        type: "bank",
+        name: bankName,
+        branch: branchName,
+        ifsc: ifscCode,
+        mnemonic: mnemonic,
+        timestamp: new Date().toISOString()
+      }));
+    } catch (error: any) {
+      console.error('Error creating bank entity:', error);
+      toast({
+        title: "Registration Failed",
+        description: error.message || "Failed to create bank identity",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Generate mnemonic phrase
-    const mnemonic = generateMnemonic();
-    setMnemonicPhrase(mnemonic);
-    
-    toast({
-      title: "Bank Registration Successful",
-      description: "Bank identity has been created.",
-    });
-    
-    // In production, store this in Supabase
-    localStorage.setItem("bankAuth", JSON.stringify({
-      type: "bank",
-      name: bankName,
-      branch: branchName,
-      ifsc: ifscCode,
-      mnemonic: mnemonic,
-      timestamp: new Date().toISOString()
-    }));
-    
-    // Display success with a slight delay to show the toast
-    setTimeout(() => {
-      navigate("/dashboard");
-    }, 2000);
   };
 
   // Handle wallet connection
@@ -168,6 +271,11 @@ const HomePage = () => {
         variant: "destructive",
       });
     }
+  };
+  
+  // Function to continue to dashboard
+  const handleContinue = () => {
+    navigate("/dashboard");
   };
 
   return (
@@ -219,8 +327,8 @@ const HomePage = () => {
                             This phrase gives you access to your digital identity. Never share it with anyone!
                           </p>
                         </div>
-                        <Button className="w-full" onClick={() => navigate("/dashboard")}>
-                          Continue to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+                        <Button className="w-full" onClick={handleContinue}>
+                          OK, I've Saved It <ArrowRight className="ml-2 h-4 w-4" />
                         </Button>
                       </div>
                     ) : (
@@ -259,8 +367,8 @@ const HomePage = () => {
                           />
                         </div>
                         <div className="pt-4">
-                          <Button type="submit" className="w-full">
-                            Create Your Identity <ArrowRight className="ml-2 h-4 w-4" />
+                          <Button type="submit" className="w-full" disabled={isLoading}>
+                            {isLoading ? "Creating Identity..." : "Create Your Identity"} {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
                           </Button>
                         </div>
                       </form>
@@ -283,8 +391,8 @@ const HomePage = () => {
                             This phrase gives authorized personnel access to your bank's digital identity. Store it securely!
                           </p>
                         </div>
-                        <Button className="w-full" onClick={() => navigate("/dashboard")}>
-                          Continue to Dashboard <ArrowRight className="ml-2 h-4 w-4" />
+                        <Button className="w-full" onClick={handleContinue}>
+                          OK, I've Saved It <ArrowRight className="ml-2 h-4 w-4" />
                         </Button>
                       </div>
                     ) : (
@@ -325,19 +433,19 @@ const HomePage = () => {
                           <Label htmlFor="managerCode">Manager Authorization Code</Label>
                           <Input
                             id="managerCode"
-                            type="password"
+                            type="text"
                             value={managerCode}
                             onChange={(e) => setManagerCode(e.target.value)}
-                            placeholder="Enter manager code"
+                            placeholder="e.g., MGRA1234"
                             required
                           />
                           <p className="text-xs text-muted-foreground">
-                            Only authorized bank managers can create an institutional identity
+                            Enter one of the test codes: MGRA1234 or MGRB5678
                           </p>
                         </div>
                         <div className="pt-4">
-                          <Button type="submit" className="w-full">
-                            Create Bank Identity <ArrowRight className="ml-2 h-4 w-4" />
+                          <Button type="submit" className="w-full" disabled={isLoading}>
+                            {isLoading ? "Creating Bank Identity..." : "Create Bank Identity"} {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
                           </Button>
                         </div>
                       </form>

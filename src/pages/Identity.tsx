@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserCircle, Upload, CheckCircle, Shield, AlertCircle, Key, FileText } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Identity = () => {
   const [selectedTab, setSelectedTab] = useState("overview");
@@ -16,29 +17,76 @@ const Identity = () => {
     did: string;
     createdOn: string;
     transactionHash: string;
+    name?: string;
+    email?: string;
+    type?: "user" | "bank";
   } | null>(null);
   const { toast } = useToast();
   
-  // Check localStorage on mount to see if identity exists
+  // Check for existing identity on mount
   useEffect(() => {
-    const storedIdentity = localStorage.getItem("userIdentity");
-    if (storedIdentity) {
+    checkExistingIdentity();
+  }, []);
+  
+  // Function to check if user has existing identity
+  const checkExistingIdentity = async () => {
+    // First check local storage for session info
+    const userAuth = localStorage.getItem("userAuth");
+    const bankAuth = localStorage.getItem("bankAuth");
+    
+    if (userAuth) {
+      const userData = JSON.parse(userAuth);
+      
       try {
-        setIdentityData(JSON.parse(storedIdentity));
-        setIdentityStatus("created");
-      } catch (e) {
-        console.error("Error parsing stored identity", e);
+        // Check Supabase for this user
+        const { data, error } = await supabase
+          .from('user_identities')
+          .select('*')
+          .eq('email', userData.email)
+          .single();
+        
+        if (data) {
+          // User exists in database
+          setIdentityStatus("created");
+          setIdentityData({
+            type: "user",
+            did: `did:polygon:0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`,
+            name: data.name,
+            email: data.email,
+            createdOn: new Date(data.created_at).toLocaleDateString(),
+            transactionHash: `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching user identity:", error);
+      }
+    } else if (bankAuth) {
+      const bankData = JSON.parse(bankAuth);
+      
+      try {
+        // Check Supabase for this bank
+        const { data, error } = await supabase
+          .from('bank_entities')
+          .select('*')
+          .eq('bank_name', bankData.name)
+          .eq('branch_name', bankData.branch)
+          .single();
+        
+        if (data) {
+          // Bank exists in database
+          setIdentityStatus("created");
+          setIdentityData({
+            type: "bank",
+            did: `did:polygon:0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`,
+            name: data.bank_name,
+            createdOn: new Date(data.created_at).toLocaleDateString(),
+            transactionHash: `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching bank identity:", error);
       }
     }
-  }, []);
-
-  // Simulate connecting to Supabase
-  const connectToSupabase = () => {
-    toast({
-      title: "Supabase Connection Required",
-      description: "Please connect this project to Supabase to enable digital identity storage.",
-      variant: "destructive",
-    });
   };
   
   // Placeholder function to simulate creating identity
@@ -52,29 +100,16 @@ const Identity = () => {
     
     setIdentityStatus("creating");
     
-    // Simulate blockchain delay
+    // Navigate to homepage to create identity
     setTimeout(() => {
-      // Create a new identity
-      const newIdentity = {
-        did: `did:polygon:0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`,
-        createdOn: "May 3, 2025",
-        transactionHash: `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
-      };
-      
-      // Store in localStorage
-      localStorage.setItem("userIdentity", JSON.stringify(newIdentity));
-      
-      // Update state
-      setIdentityData(newIdentity);
-      setIdentityStatus("created");
-      
       toast({
-        title: "Identity Created",
-        description: "Your digital identity has been successfully created and recorded on the blockchain.",
+        title: "Please Create Identity First",
+        description: "You'll be redirected to the identity creation page",
       });
       
-      connectToSupabase();
-    }, 3000);
+      // Redirect to homepage for identity creation
+      window.location.href = '/';
+    }, 2000);
   };
 
   return (
@@ -105,7 +140,7 @@ const Identity = () => {
                   <p className="text-muted-foreground mb-4">
                     You haven't created your digital identity yet
                   </p>
-                  <Button onClick={() => setSelectedTab("create")}>Create Identity</Button>
+                  <Button onClick={() => window.location.href = '/'}>Create Identity</Button>
                 </div>
               ) : identityStatus === "creating" ? (
                 <div className="text-center py-8">
@@ -119,10 +154,10 @@ const Identity = () => {
                 <div className="space-y-6">
                   <div className="flex items-center space-x-4">
                     <div className="bg-blockchain-muted p-3 rounded-full">
-                      <CheckCircle className="h-6 w-6 text-blockchain-primary" />
+                      <CheckCircle className="h-6 w-6 text-green-500" />
                     </div>
                     <div>
-                      <p className="font-medium">Identity Verified</p>
+                      <p className="font-medium">{identityData?.type === "bank" ? "Bank Identity" : "Identity"} Verified</p>
                       <p className="text-sm text-muted-foreground">Your digital identity is active on the blockchain</p>
                     </div>
                   </div>
@@ -139,7 +174,7 @@ const Identity = () => {
                       </div>
                       <div>
                         <p className="text-muted-foreground">Status</p>
-                        <p className="text-blockchain-primary">Active</p>
+                        <p className="text-green-500">Active</p>
                       </div>
                     </div>
                     
@@ -147,6 +182,21 @@ const Identity = () => {
                       <p className="text-muted-foreground">Transaction Hash</p>
                       <p className="font-mono">{identityData?.transactionHash || "0x7d8c9a4b5f6e7d8c9a4b5f6e7d8c9a4b5f6e7d8c"}</p>
                     </div>
+                    
+                    {identityData?.type === "user" && identityData?.name && (
+                      <div>
+                        <p className="text-muted-foreground">User Information</p>
+                        <p><strong>Name:</strong> {identityData.name}</p>
+                        {identityData.email && <p><strong>Email:</strong> {identityData.email}</p>}
+                      </div>
+                    )}
+                    
+                    {identityData?.type === "bank" && identityData?.name && (
+                      <div>
+                        <p className="text-muted-foreground">Bank Information</p>
+                        <p><strong>Bank Name:</strong> {identityData.name}</p>
+                      </div>
+                    )}
                   </div>
                   
                   <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
@@ -155,16 +205,8 @@ const Identity = () => {
                       <h3 className="font-medium text-blue-800">Identity Protection</h3>
                     </div>
                     <p className="text-blue-700 text-sm">
-                      Your identity is secured with blockchain technology. For permanent storage and advanced features,
-                      connect to Supabase.
+                      Your identity is secured with blockchain technology and stored in the Supabase database.
                     </p>
-                    <Button 
-                      variant="outline" 
-                      className="mt-2 border-blue-300 text-blue-700 hover:bg-blue-100"
-                      onClick={connectToSupabase}
-                    >
-                      Connect to Supabase
-                    </Button>
                   </div>
                   
                   <div className="flex justify-end space-x-2">
@@ -184,43 +226,54 @@ const Identity = () => {
               <CardDescription>Set up your secure identity on the Polygon blockchain</CardDescription>
             </CardHeader>
             <CardContent>
-              <form className="space-y-6" onSubmit={handleCreateIdentity}>
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name</Label>
-                  <Input id="fullName" placeholder="Enter your full name" required />
+              {identityStatus === "created" ? (
+                <div className="text-center py-8">
+                  <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
+                  <h3 className="text-lg font-medium">Identity Already Created</h3>
+                  <p className="text-muted-foreground mb-4">
+                    You already have an active digital identity
+                  </p>
+                  <Button onClick={() => setSelectedTab("overview")}>View Identity</Button>
                 </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input id="email" type="email" placeholder="Enter your email" required />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" placeholder="Enter your phone number" required />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="aadhaar">Aadhaar Number (Last 4 digits only)</Label>
-                  <Input id="aadhaar" placeholder="Enter last 4 digits" maxLength={4} required />
-                  <p className="text-xs text-muted-foreground">We only store a hash of this information for verification purposes</p>
-                </div>
-
-                <div className="bg-amber-50 p-4 rounded border border-amber-200 flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
-                  <div>
-                    <h4 className="font-medium text-amber-800 mb-1">Storage Notice</h4>
-                    <p className="text-sm text-amber-700">
-                      For permanent storage of your digital identity, this app needs to be connected to Supabase.
-                      Currently, your identity will be stored locally in the browser.
-                    </p>
+              ) : (
+                <form className="space-y-6" onSubmit={handleCreateIdentity}>
+                  <div className="space-y-2">
+                    <Label htmlFor="fullName">Full Name</Label>
+                    <Input id="fullName" placeholder="Enter your full name" required />
                   </div>
-                </div>
-                
-                <div className="flex justify-end">
-                  <Button type="submit">Create Identity</Button>
-                </div>
-              </form>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email Address</Label>
+                    <Input id="email" type="email" placeholder="Enter your email" required />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number</Label>
+                    <Input id="phone" placeholder="Enter your phone number" required />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="aadhaar">Aadhaar Number (Last 4 digits only)</Label>
+                    <Input id="aadhaar" placeholder="Enter last 4 digits" maxLength={4} required />
+                    <p className="text-xs text-muted-foreground">We only store a hash of this information for verification purposes</p>
+                  </div>
+
+                  <div className="bg-amber-50 p-4 rounded border border-amber-200 flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-amber-800 mb-1">Create From Homepage</h4>
+                      <p className="text-sm text-amber-700">
+                        Please create your digital identity from the homepage for a complete setup. 
+                        You'll be redirected to the homepage if you try to create from here.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end">
+                    <Button type="submit">Create Identity</Button>
+                  </div>
+                </form>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -242,7 +295,7 @@ const Identity = () => {
                   <p className="text-xs text-muted-foreground mb-4">
                     Supported formats: PDF, JPG, PNG (Max: 5MB)
                   </p>
-                  <Button onClick={connectToSupabase}>Browse Files</Button>
+                  <Button>Browse Files</Button>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -253,7 +306,7 @@ const Identity = () => {
                       <p className="text-sm text-muted-foreground">
                         Aadhaar Card, PAN Card, or Voter ID
                       </p>
-                      <Button size="sm" variant="outline" className="mt-2" onClick={connectToSupabase}>
+                      <Button size="sm" variant="outline" className="mt-2">
                         Upload
                       </Button>
                     </div>
@@ -266,7 +319,7 @@ const Identity = () => {
                       <p className="text-sm text-muted-foreground">
                         Required for digital document signing
                       </p>
-                      <Button size="sm" variant="outline" className="mt-2" onClick={connectToSupabase}>
+                      <Button size="sm" variant="outline" className="mt-2">
                         Create
                       </Button>
                     </div>
@@ -284,7 +337,7 @@ const Identity = () => {
                     <div className="flex items-center gap-2">
                       <Shield className="h-5 w-5 text-green-600" />
                       <p className="text-sm text-green-700">
-                        <strong>Enhanced Security:</strong> Connect to Supabase to enable encrypted document storage with bank-level security.
+                        <strong>Enhanced Security:</strong> Your documents are stored with bank-level security.
                       </p>
                     </div>
                   </div>

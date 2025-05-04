@@ -9,7 +9,90 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      bank_entities: {
+        Row: {
+          bank_name: string
+          branch_name: string
+          created_at: string
+          id: string
+          ifsc_code: string
+          manager_code: string
+          mnemonic_phrase: string
+          wallet_address: string | null
+        }
+        Insert: {
+          bank_name: string
+          branch_name: string
+          created_at?: string
+          id?: string
+          ifsc_code: string
+          manager_code: string
+          mnemonic_phrase: string
+          wallet_address?: string | null
+        }
+        Update: {
+          bank_name?: string
+          branch_name?: string
+          created_at?: string
+          id?: string
+          ifsc_code?: string
+          manager_code?: string
+          mnemonic_phrase?: string
+          wallet_address?: string | null
+        }
+        Relationships: []
+      }
+      manager_codes: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          used: boolean | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          used?: boolean | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          used?: boolean | null
+        }
+        Relationships: []
+      }
+      user_identities: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          mnemonic_phrase: string
+          mobile: string
+          name: string
+          wallet_address: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          mnemonic_phrase: string
+          mobile: string
+          name: string
+          wallet_address?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          mnemonic_phrase?: string
+          mobile?: string
+          name?: string
+          wallet_address?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

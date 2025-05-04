@@ -1,10 +1,13 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { 
   Shield, Home, UserCircle, FileCheck, Flag, Menu, X, Search
 } from "lucide-react";
+import { connectWallet, switchToMumbaiNetwork } from "@/lib/blockchain";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const navItems = [
   { name: "Dashboard", path: "/dashboard", icon: <Home className="h-5 w-5" /> },
@@ -16,10 +19,85 @@ const navItems = [
 
 export const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
   const location = useLocation();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    // Check if wallet is already connected in localStorage
+    const savedWallet = localStorage.getItem("walletAddress");
+    if (savedWallet) {
+      setWalletAddress(savedWallet);
+    }
+  }, []);
 
   const toggleSidebar = () => {
     setIsOpen(!isOpen);
+  };
+
+  const handleConnectWallet = async () => {
+    try {
+      setIsConnecting(true);
+      toast({
+        title: "Connecting Wallet",
+        description: "Please approve the connection request in MetaMask",
+      });
+      
+      // First connect to wallet
+      const accounts = await connectWallet();
+      
+      // Then switch to Mumbai network
+      await switchToMumbaiNetwork();
+      
+      if (accounts && accounts.length > 0) {
+        const address = accounts[0];
+        setWalletAddress(address);
+        
+        // Store wallet address
+        localStorage.setItem("walletAddress", address);
+        
+        // Update the user or bank entity in Supabase if relevant
+        const userAuth = localStorage.getItem("userAuth");
+        const bankAuth = localStorage.getItem("bankAuth");
+        
+        if (userAuth) {
+          const userData = JSON.parse(userAuth);
+          const { data, error } = await supabase
+            .from('user_identities')
+            .update({ wallet_address: address })
+            .eq('email', userData.email);
+            
+          if (error) {
+            console.error("Failed to update user wallet:", error);
+          }
+        } else if (bankAuth) {
+          const bankData = JSON.parse(bankAuth);
+          const { data, error } = await supabase
+            .from('bank_entities')
+            .update({ wallet_address: address })
+            .eq('bank_name', bankData.name)
+            .eq('branch_name', bankData.branch);
+            
+          if (error) {
+            console.error("Failed to update bank wallet:", error);
+          }
+        }
+        
+        toast({
+          title: "Wallet Connected",
+          description: `Connected to ${address.substring(0, 6)}...${address.substring(address.length - 4)}`,
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: "Connection Error",
+        description: error.message || "Failed to connect wallet",
+        variant: "destructive",
+      });
+    } finally {
+      setIsConnecting(false);
+    }
   };
 
   return (
@@ -75,7 +153,18 @@ export const Sidebar = () => {
                 <p className="text-xs">Polygon Mainnet Connected</p>
               </div>
             </div>
-            <ConnectWalletButton />
+            <Button 
+              className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700"
+              onClick={handleConnectWallet}
+              disabled={isConnecting}
+            >
+              {isConnecting 
+                ? "Connecting..." 
+                : walletAddress 
+                  ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}` 
+                  : "Connect Wallet"
+              }
+            </Button>
           </div>
         </div>
       </aside>
@@ -91,14 +180,5 @@ export const Sidebar = () => {
       {/* Spacer for content on desktop */}
       <div className="hidden md:block w-64" />
     </>
-  );
-};
-
-// Placeholder wallet connection button
-const ConnectWalletButton = () => {
-  return (
-    <Button className="w-full bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700">
-      Connect Wallet
-    </Button>
   );
 };
