@@ -21,56 +21,54 @@ const queryClient = new QueryClient();
 
 const App = () => {
   return (
-    <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/dashboard" element={
-                <MainLayout>
-                  <Dashboard />
-                </MainLayout>
-              } />
-              <Route path="/identity" element={
-                <MainLayout>
-                  <Identity />
-                </MainLayout>
-              } />
-              <Route path="/consents" element={
-                <MainLayout>
-                  <Consents />
-                </MainLayout>
-              } />
-              <Route path="/fraud-reports" element={
-                <MainLayout>
-                  <FraudReports />
-                </MainLayout>
-              } />
-              <Route path="/url-checker" element={
-                <MainLayout>
-                  <UrlCheckerPage />
-                </MainLayout>
-              } />
-              <Route path="/contact" element={
-                <MainLayout>
-                  <Contact />
-                </MainLayout>
-              } />
-              <Route path="/user-manual" element={
-                <MainLayout>
-                  <UserManual />
-                </MainLayout>
-              } />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-            <Toaster />
-            <Sonner />
-          </BrowserRouter>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/dashboard" element={
+              <MainLayout>
+                <Dashboard />
+              </MainLayout>
+            } />
+            <Route path="/identity" element={
+              <MainLayout>
+                <Identity />
+              </MainLayout>
+            } />
+            <Route path="/consents" element={
+              <MainLayout>
+                <Consents />
+              </MainLayout>
+            } />
+            <Route path="/fraud-reports" element={
+              <MainLayout>
+                <FraudReports />
+              </MainLayout>
+            } />
+            <Route path="/url-checker" element={
+              <MainLayout>
+                <UrlCheckerPage />
+              </MainLayout>
+            } />
+            <Route path="/contact" element={
+              <MainLayout>
+                <Contact />
+              </MainLayout>
+            } />
+            <Route path="/user-manual" element={
+              <MainLayout>
+                <UserManual />
+              </MainLayout>
+            } />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+          <Toaster />
+          <Sonner />
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 };
 

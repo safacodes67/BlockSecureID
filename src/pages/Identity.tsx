@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,30 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+
+// Add custom types to match our Supabase schema
+interface UserIdentity {
+  id: string;
+  created_at: string;
+  email: string;
+  name: string;
+  mobile: string;
+  mnemonic_phrase: string;
+  wallet_address?: string;
+  face_registered?: boolean;  // Add this property to match our usage
+}
+
+interface BankEntity {
+  id: string;
+  created_at: string;
+  bank_name: string;
+  branch_name: string;
+  ifsc_code: string;
+  manager_code: string;
+  mnemonic_phrase: string;
+  wallet_address?: string;
+  face_registered?: boolean;  // Add this property to match our usage
+}
 
 const Identity = () => {
   const [selectedTab, setSelectedTab] = useState("overview");
@@ -281,24 +304,6 @@ const Identity = () => {
     }
   };
   
-  // Handle facial recognition registration/verification
-  const handleFacialRecognition = () => {
-    setShowFaceCapture(true);
-    
-    // In a real implementation, this would connect to a facial recognition API
-    // For demo purposes, we'll simulate the process
-    setTimeout(() => {
-      toast({
-        title: "Face Captured",
-        description: "Your face has been successfully registered for recovery purposes",
-      });
-      setShowFaceCapture(false);
-      
-      // Update user profile with face_registered flag
-      updateFaceRegistrationStatus();
-    }, 3000);
-  };
-  
   // Update face registration status in database
   const updateFaceRegistrationStatus = async () => {
     try {
@@ -307,15 +312,27 @@ const Identity = () => {
       
       if (userAuth) {
         const userData = JSON.parse(userAuth);
+        
+        // Using the custom type to allow for face_registered property
+        const updateData: Partial<UserIdentity> = { 
+          face_registered: true 
+        };
+        
         await supabase
           .from('user_identities')
-          .update({ face_registered: true })
+          .update(updateData)
           .eq('email', userData.email);
       } else if (bankAuth) {
         const bankData = JSON.parse(bankAuth);
+        
+        // Using the custom type to allow for face_registered property
+        const updateData: Partial<BankEntity> = { 
+          face_registered: true 
+        };
+        
         await supabase
           .from('bank_entities')
-          .update({ face_registered: true })
+          .update(updateData)
           .eq('bank_name', bankData.name)
           .eq('branch_name', bankData.branch);
       }

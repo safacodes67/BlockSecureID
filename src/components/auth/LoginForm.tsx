@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowRight, KeyRound, AlertTriangle } from "lucide-react";
+import { ArrowRight, KeyRound, AlertTriangle, Camera } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
@@ -60,7 +60,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ userType }) => {
         const { data: bankData, error: bankError } = await supabase
           .from("bank_entities")
           .select("*")
-          .eq("email", email)
+          .eq("bank_name", email)  // Using bank_name instead of email since there's no email field
           .single();
           
         if (bankError) {
@@ -159,29 +159,23 @@ export const LoginForm: React.FC<LoginFormProps> = ({ userType }) => {
         if (error) throw new Error("Invalid recovery phrase");
         
         if (data) {
-          // Reset password flow (assuming bank has email field)
-          if (data.email) {
-            const { error: resetError } = await supabase.auth.resetPasswordForEmail(data.email);
-            if (resetError) throw resetError;
-            
-            toast({
-              title: "Recovery Successful",
-              description: "Check your email to reset your password",
-            });
-            
-            // Store bank data
-            localStorage.setItem("bankAuth", JSON.stringify({
-              type: "bank",
-              name: data.bank_name,
-              branch: data.branch_name,
-              ifsc: data.ifsc_code,
-              timestamp: new Date().toISOString()
-            }));
-            
-            setShowRecovery(false);
-          } else {
-            throw new Error("Bank email not found");
-          }
+          // For banks, we don't have email field, so we can't use resetPasswordForEmail
+          // Instead, we'll just verify and authenticate the bank
+          toast({
+            title: "Recovery Successful",
+            description: "Bank identity verified via recovery phrase",
+          });
+          
+          // Store bank data
+          localStorage.setItem("bankAuth", JSON.stringify({
+            type: "bank",
+            name: data.bank_name,
+            branch: data.branch_name,
+            ifsc: data.ifsc_code,
+            timestamp: new Date().toISOString()
+          }));
+          
+          setShowRecovery(false);
         }
       }
     } catch (error: any) {

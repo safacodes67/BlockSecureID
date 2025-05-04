@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,7 @@ const HomePage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("login");
-  const [userType, setUserType] = useState("user");
+  const [userType, setUserType] = useState<"user" | "bank">("user");
   const [walletAddress, setWalletAddress] = useState("");
 
   // Check for wallet connection on mount
