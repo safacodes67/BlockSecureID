@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -168,15 +167,123 @@ export const Sidebar = () => {
           </nav>
           
           <div className="mt-auto">
-            <DialogTrigger asChild onClick={() => setShowManual(true)}>
-              <Button 
-                variant="ghost" 
-                className="w-full justify-start text-white hover:bg-white/10"
-              >
-                <Book className="h-5 w-5 mr-3" />
-                <span>User Manual</span>
-              </Button>
-            </DialogTrigger>
+            {/* Fix: Wrap DialogTrigger inside Dialog component */}
+            <Dialog open={showManual} onOpenChange={setShowManual}>
+              <DialogTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  className="w-full justify-start text-white hover:bg-white/10"
+                >
+                  <Book className="h-5 w-5 mr-3" />
+                  <span>User Manual</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="text-2xl">BlockSecure ID User Manual</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-6">
+                  <section>
+                    <h3 className="text-lg font-medium mb-2">Getting Started</h3>
+                    <ol className="list-decimal pl-5 space-y-2">
+                      <li>
+                        <strong>Create an Account</strong>: Register as an individual user or bank entity by providing the required information.
+                      </li>
+                      <li>
+                        <strong>Save Your Recovery Phrase</strong>: After registration, you'll receive a 12-word recovery phrase. Store it securely as it's needed for account recovery.
+                      </li>
+                      <li>
+                        <strong>Connect Your Wallet</strong>: Link your MetaMask wallet to enable blockchain interactions.
+                      </li>
+                      <li>
+                        <strong>Complete KYC</strong>: Upload necessary identification documents in the Identity section.
+                      </li>
+                    </ol>
+                  </section>
+                  
+                  <section>
+                    <h3 className="text-lg font-medium mb-2">Account Management</h3>
+                    <ul className="list-disc pl-5 space-y-2">
+                      <li>
+                        <strong>Profile Updates</strong>: Modify your personal information in the Identity section.
+                      </li>
+                      <li>
+                        <strong>Document Management</strong>: Upload and manage your KYC documents, including ID proof and digital signatures.
+                      </li>
+                      <li>
+                        <strong>Account Recovery</strong>: Use your 12-word phrase or facial recognition if you forget your password.
+                      </li>
+                    </ul>
+                  </section>
+                  
+                  <section>
+                    <h3 className="text-lg font-medium mb-2">Key Features</h3>
+                    <ul className="list-disc pl-5 space-y-2">
+                      <li>
+                        <strong>Digital Identity</strong>: Manage your blockchain-based decentralized identity.
+                      </li>
+                      <li>
+                        <strong>Consent Management</strong>: Control who can access your personal information.
+                      </li>
+                      <li>
+                        <strong>Fraud Reporting</strong>: Report suspicious websites or fraudulent activities.
+                      </li>
+                      <li>
+                        <strong>URL Security</strong>: Verify website security before proceeding.
+                      </li>
+                    </ul>
+                  </section>
+                  
+                  <section>
+                    <h3 className="text-lg font-medium mb-2">Frequently Asked Questions</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="font-medium">What is a recovery phrase?</p>
+                        <p className="text-sm text-muted-foreground">A 12-word phrase generated during account creation that allows you to recover your account if you forget your password.</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">How does facial recognition work?</p>
+                        <p className="text-sm text-muted-foreground">During registration, you can opt to register your face, which can be used as an alternative recovery method if you forget your password and recovery phrase.</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">Why do I need to connect a wallet?</p>
+                        <p className="text-sm text-muted-foreground">The wallet connection enables blockchain interactions for securing your identity and verifying transactions.</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">What documents should I upload for KYC?</p>
+                        <p className="text-sm text-muted-foreground">You should upload government-issued identification (Aadhaar, PAN, passport) and any additional documents required for verification.</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">How secure is my data?</p>
+                        <p className="text-sm text-muted-foreground">Your data is secured using blockchain technology and encrypted storage. Only you control who can access your information.</p>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section>
+                    <h3 className="text-lg font-medium mb-2">Need Help?</h3>
+                    <p className="mb-3">Contact our support team for assistance:</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="border rounded-md p-3">
+                        <p className="font-medium">Vinutha</p>
+                        <p className="text-sm">Phone: 7676890636</p>
+                        <p className="text-sm">Email: vinuthah355@gmail.com</p>
+                      </div>
+                      <div className="border rounded-md p-3">
+                        <p className="font-medium">Sumayya Fatima</p>
+                        <p className="text-sm">Phone: 9380086453</p>
+                        <p className="text-sm">Email: sumayyaf166@gmail.com</p>
+                      </div>
+                      <div className="border rounded-md p-3">
+                        <p className="font-medium">Chandana</p>
+                        <p className="text-sm">Phone: 7348961739</p>
+                        <p className="text-sm">Email: reddychandhana974@gmail.com</p>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </DialogContent>
+            </Dialog>
             
             <Button 
               variant="ghost"
@@ -219,115 +326,6 @@ export const Sidebar = () => {
           onClick={toggleSidebar}
         />
       )}
-      
-      {/* User Manual Dialog */}
-      <Dialog open={showManual} onOpenChange={setShowManual}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl">BlockSecure ID User Manual</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6">
-            <section>
-              <h3 className="text-lg font-medium mb-2">Getting Started</h3>
-              <ol className="list-decimal pl-5 space-y-2">
-                <li>
-                  <strong>Create an Account</strong>: Register as an individual user or bank entity by providing the required information.
-                </li>
-                <li>
-                  <strong>Save Your Recovery Phrase</strong>: After registration, you'll receive a 12-word recovery phrase. Store it securely as it's needed for account recovery.
-                </li>
-                <li>
-                  <strong>Connect Your Wallet</strong>: Link your MetaMask wallet to enable blockchain interactions.
-                </li>
-                <li>
-                  <strong>Complete KYC</strong>: Upload necessary identification documents in the Identity section.
-                </li>
-              </ol>
-            </section>
-            
-            <section>
-              <h3 className="text-lg font-medium mb-2">Account Management</h3>
-              <ul className="list-disc pl-5 space-y-2">
-                <li>
-                  <strong>Profile Updates</strong>: Modify your personal information in the Identity section.
-                </li>
-                <li>
-                  <strong>Document Management</strong>: Upload and manage your KYC documents, including ID proof and digital signatures.
-                </li>
-                <li>
-                  <strong>Account Recovery</strong>: Use your 12-word phrase or facial recognition if you forget your password.
-                </li>
-              </ul>
-            </section>
-            
-            <section>
-              <h3 className="text-lg font-medium mb-2">Key Features</h3>
-              <ul className="list-disc pl-5 space-y-2">
-                <li>
-                  <strong>Digital Identity</strong>: Manage your blockchain-based decentralized identity.
-                </li>
-                <li>
-                  <strong>Consent Management</strong>: Control who can access your personal information.
-                </li>
-                <li>
-                  <strong>Fraud Reporting</strong>: Report suspicious websites or fraudulent activities.
-                </li>
-                <li>
-                  <strong>URL Security</strong>: Verify website security before proceeding.
-                </li>
-              </ul>
-            </section>
-            
-            <section>
-              <h3 className="text-lg font-medium mb-2">Frequently Asked Questions</h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="font-medium">What is a recovery phrase?</p>
-                  <p className="text-sm text-muted-foreground">A 12-word phrase generated during account creation that allows you to recover your account if you forget your password.</p>
-                </div>
-                <div>
-                  <p className="font-medium">How does facial recognition work?</p>
-                  <p className="text-sm text-muted-foreground">During registration, you can opt to register your face, which can be used as an alternative recovery method if you forget your password and recovery phrase.</p>
-                </div>
-                <div>
-                  <p className="font-medium">Why do I need to connect a wallet?</p>
-                  <p className="text-sm text-muted-foreground">The wallet connection enables blockchain interactions for securing your identity and verifying transactions.</p>
-                </div>
-                <div>
-                  <p className="font-medium">What documents should I upload for KYC?</p>
-                  <p className="text-sm text-muted-foreground">You should upload government-issued identification (Aadhaar, PAN, passport) and any additional documents required for verification.</p>
-                </div>
-                <div>
-                  <p className="font-medium">How secure is my data?</p>
-                  <p className="text-sm text-muted-foreground">Your data is secured using blockchain technology and encrypted storage. Only you control who can access your information.</p>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h3 className="text-lg font-medium mb-2">Need Help?</h3>
-              <p className="mb-3">Contact our support team for assistance:</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="border rounded-md p-3">
-                  <p className="font-medium">Vinutha</p>
-                  <p className="text-sm">Phone: 7676890636</p>
-                  <p className="text-sm">Email: vinuthah355@gmail.com</p>
-                </div>
-                <div className="border rounded-md p-3">
-                  <p className="font-medium">Sumayya Fatima</p>
-                  <p className="text-sm">Phone: 9380086453</p>
-                  <p className="text-sm">Email: sumayyaf166@gmail.com</p>
-                </div>
-                <div className="border rounded-md p-3">
-                  <p className="font-medium">Chandana</p>
-                  <p className="text-sm">Phone: 7348961739</p>
-                  <p className="text-sm">Email: reddychandhana974@gmail.com</p>
-                </div>
-              </div>
-            </section>
-          </div>
-        </DialogContent>
-      </Dialog>
       
       {/* Spacer for content on desktop */}
       <div className="hidden md:block w-64" />
