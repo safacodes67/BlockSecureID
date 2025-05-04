@@ -11,6 +11,7 @@ import Consents from "./pages/Consents";
 import FraudReports from "./pages/FraudReports";
 import UrlCheckerPage from "./pages/UrlCheckerPage";
 import NotFound from "./pages/NotFound";
+import HomePage from "./pages/HomePage";
 
 const queryClient = new QueryClient();
 
@@ -21,7 +22,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/dashboard" element={
             <MainLayout>
               <Dashboard />
