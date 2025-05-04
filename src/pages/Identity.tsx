@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UserCircle, Upload, CheckCircle, Shield, AlertCircle, Key, FileText } from "lucide-react";
+import { UserCircle, Upload, CheckCircle, Shield, AlertCircle, Key, FileText, Camera } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 const Identity = () => {
   const [selectedTab, setSelectedTab] = useState("overview");
@@ -21,6 +22,16 @@ const Identity = () => {
     email?: string;
     type?: "user" | "bank";
   } | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<{
+    personalId?: string;
+    signature?: string;
+    additionalDocs: {id: string, name: string, url: string}[];
+  }>({
+    additionalDocs: []
+  });
+  const [isUploading, setIsUploading] = useState(false);
+  const [additionalDocName, setAdditionalDocName] = useState("");
+  const [showFaceCapture, setShowFaceCapture] = useState(false);
   const { toast } = useToast();
   
   // Check for existing identity on mount
@@ -56,6 +67,9 @@ const Identity = () => {
             createdOn: new Date(data.created_at).toLocaleDateString(),
             transactionHash: `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
           });
+          
+          // Load any stored documents
+          loadUserDocuments(data.id);
         }
       } catch (error) {
         console.error("Error fetching user identity:", error);
@@ -82,10 +96,231 @@ const Identity = () => {
             createdOn: new Date(data.created_at).toLocaleDateString(),
             transactionHash: `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
           });
+          
+          // Load any stored documents
+          loadBankDocuments(data.id);
         }
       } catch (error) {
         console.error("Error fetching bank identity:", error);
       }
+    }
+  };
+  
+  // Load user documents from storage
+  const loadUserDocuments = async (userId: string) => {
+    try {
+      // List all files in the user's folder
+      const { data: files, error } = await supabase.storage
+        .from('user_documents')
+        .list(`${userId}`);
+      
+      if (error) throw error;
+      
+      if (files && files.length > 0) {
+        const personalIdFile = files.find(file => file.name.startsWith('personal_id_'));
+        const signatureFile = files.find(file => file.name.startsWith('signature_'));
+        const additionalFiles = files.filter(file => file.name.startsWith('additional_'));
+        
+        const updatedFiles = {
+          personalId: personalIdFile ? personalIdFile.name : undefined,
+          signature: signatureFile ? signatureFile.name : undefined,
+          additionalDocs: await Promise.all(additionalFiles.map(async file => {
+            const { data: url } = supabase.storage
+              .from('user_documents')
+              .getPublicUrl(`${userId}/${file.name}`);
+            
+            return {
+              id: file.name,
+              name: file.name.replace('additional_', '').replace(/\.\w+$/, ''),
+              url: url.publicUrl
+            };
+          }))
+        };
+        
+        setUploadedFiles(updatedFiles);
+      }
+    } catch (error) {
+      console.error("Error loading user documents:", error);
+    }
+  };
+  
+  // Load bank documents from storage
+  const loadBankDocuments = async (bankId: string) => {
+    try {
+      // List all files in the bank's folder
+      const { data: files, error } = await supabase.storage
+        .from('bank_documents')
+        .list(`${bankId}`);
+      
+      if (error) throw error;
+      
+      if (files && files.length > 0) {
+        const personalIdFile = files.find(file => file.name.startsWith('personal_id_'));
+        const signatureFile = files.find(file => file.name.startsWith('signature_'));
+        const additionalFiles = files.filter(file => file.name.startsWith('additional_'));
+        
+        const updatedFiles = {
+          personalId: personalIdFile ? personalIdFile.name : undefined,
+          signature: signatureFile ? signatureFile.name : undefined,
+          additionalDocs: await Promise.all(additionalFiles.map(async file => {
+            const { data: url } = supabase.storage
+              .from('bank_documents')
+              .getPublicUrl(`${bankId}/${file.name}`);
+            
+            return {
+              id: file.name,
+              name: file.name.replace('additional_', '').replace(/\.\w+$/, ''),
+              url: url.publicUrl
+            };
+          }))
+        };
+        
+        setUploadedFiles(updatedFiles);
+      }
+    } catch (error) {
+      console.error("Error loading bank documents:", error);
+    }
+  };
+  
+  // Handle file upload
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, fileType: 'personalId' | 'signature' | 'additional') => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    setIsUploading(true);
+    
+    try {
+      // Determine user type and ID
+      let id, bucketName;
+      const userAuth = localStorage.getItem("userAuth");
+      const bankAuth = localStorage.getItem("bankAuth");
+      
+      if (userAuth) {
+        const userData = JSON.parse(userAuth);
+        const { data, error } = await supabase
+          .from('user_identities')
+          .select('id')
+          .eq('email', userData.email)
+          .single();
+        
+        if (error) throw error;
+        id = data.id;
+        bucketName = 'user_documents';
+      } else if (bankAuth) {
+        const bankData = JSON.parse(bankAuth);
+        const { data, error } = await supabase
+          .from('bank_entities')
+          .select('id')
+          .eq('bank_name', bankData.name)
+          .eq('branch_name', bankData.branch)
+          .single();
+        
+        if (error) throw error;
+        id = data.id;
+        bucketName = 'bank_documents';
+      } else {
+        throw new Error("No authenticated user found");
+      }
+      
+      // Generate file name based on type
+      let fileName;
+      if (fileType === 'personalId') {
+        fileName = `personal_id_${Date.now()}.${file.name.split('.').pop()}`;
+      } else if (fileType === 'signature') {
+        fileName = `signature_${Date.now()}.${file.name.split('.').pop()}`;
+      } else {
+        // For additional docs, use the provided name or the file name
+        const docName = additionalDocName || file.name.replace(/\.\w+$/, '');
+        fileName = `additional_${docName}_${Date.now()}.${file.name.split('.').pop()}`;
+      }
+      
+      // Upload file to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from(bucketName)
+        .upload(`${id}/${fileName}`, file);
+      
+      if (uploadError) throw uploadError;
+      
+      // Get public URL for the file
+      const { data } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(`${id}/${fileName}`);
+      
+      // Update state based on file type
+      if (fileType === 'personalId') {
+        setUploadedFiles(prev => ({...prev, personalId: fileName}));
+      } else if (fileType === 'signature') {
+        setUploadedFiles(prev => ({...prev, signature: fileName}));
+      } else {
+        const newDoc = {
+          id: fileName,
+          name: additionalDocName || file.name.replace(/\.\w+$/, ''),
+          url: data.publicUrl
+        };
+        setUploadedFiles(prev => ({
+          ...prev, 
+          additionalDocs: [...prev.additionalDocs, newDoc]
+        }));
+        setAdditionalDocName("");
+      }
+      
+      toast({
+        title: "Upload Successful",
+        description: `${fileType === 'additional' ? 'Document' : fileType === 'personalId' ? 'Personal ID' : 'Digital Signature'} uploaded successfully.`,
+      });
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Could not upload file. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+  
+  // Handle facial recognition registration/verification
+  const handleFacialRecognition = () => {
+    setShowFaceCapture(true);
+    
+    // In a real implementation, this would connect to a facial recognition API
+    // For demo purposes, we'll simulate the process
+    setTimeout(() => {
+      toast({
+        title: "Face Captured",
+        description: "Your face has been successfully registered for recovery purposes",
+      });
+      setShowFaceCapture(false);
+      
+      // Update user profile with face_registered flag
+      updateFaceRegistrationStatus();
+    }, 3000);
+  };
+  
+  // Update face registration status in database
+  const updateFaceRegistrationStatus = async () => {
+    try {
+      const userAuth = localStorage.getItem("userAuth");
+      const bankAuth = localStorage.getItem("bankAuth");
+      
+      if (userAuth) {
+        const userData = JSON.parse(userAuth);
+        await supabase
+          .from('user_identities')
+          .update({ face_registered: true })
+          .eq('email', userData.email);
+      } else if (bankAuth) {
+        const bankData = JSON.parse(bankAuth);
+        await supabase
+          .from('bank_entities')
+          .update({ face_registered: true })
+          .eq('bank_name', bankData.name)
+          .eq('branch_name', bankData.branch);
+      }
+    } catch (error) {
+      console.error("Error updating face registration status:", error);
     }
   };
   
@@ -122,8 +357,8 @@ const Identity = () => {
       <Tabs defaultValue={selectedTab} className="w-full" onValueChange={setSelectedTab}>
         <TabsList className="grid grid-cols-3 mb-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="create">Create Identity</TabsTrigger>
           <TabsTrigger value="documents">KYC Documents</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
@@ -219,65 +454,6 @@ const Identity = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="create">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create Digital Identity</CardTitle>
-              <CardDescription>Set up your secure identity on the Polygon blockchain</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {identityStatus === "created" ? (
-                <div className="text-center py-8">
-                  <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
-                  <h3 className="text-lg font-medium">Identity Already Created</h3>
-                  <p className="text-muted-foreground mb-4">
-                    You already have an active digital identity
-                  </p>
-                  <Button onClick={() => setSelectedTab("overview")}>View Identity</Button>
-                </div>
-              ) : (
-                <form className="space-y-6" onSubmit={handleCreateIdentity}>
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Full Name</Label>
-                    <Input id="fullName" placeholder="Enter your full name" required />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input id="email" type="email" placeholder="Enter your email" required />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number</Label>
-                    <Input id="phone" placeholder="Enter your phone number" required />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="aadhaar">Aadhaar Number (Last 4 digits only)</Label>
-                    <Input id="aadhaar" placeholder="Enter last 4 digits" maxLength={4} required />
-                    <p className="text-xs text-muted-foreground">We only store a hash of this information for verification purposes</p>
-                  </div>
-
-                  <div className="bg-amber-50 p-4 rounded border border-amber-200 flex items-start gap-3">
-                    <AlertCircle className="h-5 w-5 text-amber-500 mt-0.5" />
-                    <div>
-                      <h4 className="font-medium text-amber-800 mb-1">Create From Homepage</h4>
-                      <p className="text-sm text-amber-700">
-                        Please create your digital identity from the homepage for a complete setup. 
-                        You'll be redirected to the homepage if you try to create from here.
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <Button type="submit">Create Identity</Button>
-                  </div>
-                </form>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
         <TabsContent value="documents">
           <Card>
             <CardHeader>
@@ -286,45 +462,154 @@ const Identity = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                <div className="border border-dashed rounded-lg p-8 text-center">
-                  <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium">Upload Documents</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Drag and drop your documents here, or click to browse
-                  </p>
-                  <p className="text-xs text-muted-foreground mb-4">
-                    Supported formats: PDF, JPG, PNG (Max: 5MB)
-                  </p>
-                  <Button>Browse Files</Button>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Personal ID Upload */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base font-medium flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Personal ID
+                      </CardTitle>
+                      <CardDescription>
+                        Aadhaar Card, PAN Card, or Voter ID
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {uploadedFiles.personalId ? (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <p className="text-sm font-medium">Document Uploaded</p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <Label htmlFor="personalId" className="cursor-pointer flex-1">
+                            <div className="w-full h-32 border-2 border-dashed rounded-md flex items-center justify-center hover:bg-gray-50">
+                              <div className="text-center">
+                                <Upload className="h-8 w-8 mx-auto text-gray-400" />
+                                <span className="text-sm text-muted-foreground mt-1 block">Click to upload</span>
+                              </div>
+                            </div>
+                          </Label>
+                          <Input 
+                            id="personalId" 
+                            type="file" 
+                            className="hidden" 
+                            onChange={(e) => handleFileUpload(e, 'personalId')} 
+                            accept="image/*, application/pdf"
+                            disabled={isUploading}
+                          />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Digital Signature Upload */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base font-medium flex items-center gap-2">
+                        <Key className="h-4 w-4" />
+                        Digital Signature
+                      </CardTitle>
+                      <CardDescription>
+                        Required for digital document signing
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {uploadedFiles.signature ? (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                          <p className="text-sm font-medium">Signature Uploaded</p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <Label htmlFor="signature" className="cursor-pointer flex-1">
+                            <div className="w-full h-32 border-2 border-dashed rounded-md flex items-center justify-center hover:bg-gray-50">
+                              <div className="text-center">
+                                <Upload className="h-8 w-8 mx-auto text-gray-400" />
+                                <span className="text-sm text-muted-foreground mt-1 block">Click to upload</span>
+                              </div>
+                            </div>
+                          </Label>
+                          <Input 
+                            id="signature" 
+                            type="file" 
+                            className="hidden" 
+                            onChange={(e) => handleFileUpload(e, 'signature')} 
+                            accept="image/*"
+                            disabled={isUploading}
+                          />
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="border rounded-md p-4 flex items-start gap-3">
-                    <FileText className="h-6 w-6 text-muted-foreground" />
-                    <div>
-                      <h4 className="font-medium">Personal ID</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Aadhaar Card, PAN Card, or Voter ID
-                      </p>
-                      <Button size="sm" variant="outline" className="mt-2">
-                        Upload
-                      </Button>
+                {/* Additional Documents */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base font-medium">Additional Documents</CardTitle>
+                    <CardDescription>
+                      Upload any additional documents as needed
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* List of uploaded additional documents */}
+                      {uploadedFiles.additionalDocs.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium">Uploaded Documents:</p>
+                          <div className="divide-y">
+                            {uploadedFiles.additionalDocs.map((doc) => (
+                              <div key={doc.id} className="py-2 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <FileText className="h-4 w-4 text-gray-500" />
+                                  <span>{doc.name}</span>
+                                </div>
+                                <a 
+                                  href={doc.url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  className="text-sm text-blue-600 hover:underline"
+                                >
+                                  View
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Upload form */}
+                      <div className="flex flex-col space-y-2">
+                        <div className="flex space-x-2">
+                          <div className="flex-1">
+                            <Label htmlFor="docName" className="sr-only">Document Name</Label>
+                            <Input 
+                              id="docName" 
+                              placeholder="Document Name" 
+                              value={additionalDocName}
+                              onChange={(e) => setAdditionalDocName(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="additionalDoc" className="sr-only">Upload Document</Label>
+                            <Input 
+                              id="additionalDoc" 
+                              type="file" 
+                              onChange={(e) => handleFileUpload(e, 'additional')}
+                              accept="image/*, application/pdf, .doc, .docx"
+                              disabled={isUploading}
+                              className="max-w-xs"
+                            />
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Supported formats: PDF, JPG, PNG, DOC, DOCX (Max: 5MB)
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="border rounded-md p-4 flex items-start gap-3">
-                    <Key className="h-6 w-6 text-muted-foreground" />
-                    <div>
-                      <h4 className="font-medium">Digital Signature</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Required for digital document signing
-                      </p>
-                      <Button size="sm" variant="outline" className="mt-2">
-                        Create
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
 
                 <div>
                   <h3 className="text-lg font-medium mb-4">Document Security</h3>
@@ -346,7 +631,110 @@ const Identity = () => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="security">
+          <Card>
+            <CardHeader>
+              <CardTitle>Security Settings</CardTitle>
+              <CardDescription>Manage security preferences for your digital identity</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Facial Recognition */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Facial Recognition</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Register your face to enable account recovery if you forget your password and recovery phrase.
+                  </p>
+                  <Button onClick={handleFacialRecognition} variant="outline" className="flex items-center gap-2">
+                    <Camera className="h-4 w-4" />
+                    Register Face for Recovery
+                  </Button>
+                </div>
+                
+                {/* Recovery Options */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Recovery Options</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">12-Word Recovery Phrase</p>
+                        <p className="text-sm text-muted-foreground">
+                          Your backup recovery phrase for account access
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm">
+                        View Phrase
+                      </Button>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Reset Password</p>
+                        <p className="text-sm text-muted-foreground">
+                          Change your account password
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm">
+                        Reset
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Access Control */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Access Control</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Manage who can access your digital identity information.
+                  </p>
+                  <Button variant="outline" className="w-full">
+                    Manage Access Permissions
+                  </Button>
+                </div>
+                
+                {/* Two-Factor Authentication */}
+                <div className="border rounded-lg p-4">
+                  <h3 className="text-lg font-medium mb-2">Two-Factor Authentication</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Add an extra layer of security to your account.
+                  </p>
+                  <Button variant="outline" className="w-full">
+                    Enable 2FA
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+      
+      {/* Face Capture Dialog */}
+      <Dialog open={showFaceCapture} onOpenChange={setShowFaceCapture}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Face Recognition Setup</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-center">
+            <div className="w-full h-64 bg-gray-100 rounded-md border-2 border-dashed border-gray-300 flex items-center justify-center">
+              <Camera className="h-20 w-20 text-gray-400 animate-pulse" />
+            </div>
+            <p className="text-sm">
+              Position your face in the center of the frame to register for account recovery.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Your face data is encrypted and stored securely for verification purposes only.
+            </p>
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => setShowFaceCapture(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -13,6 +13,8 @@ import FraudReports from "./pages/FraudReports";
 import UrlCheckerPage from "./pages/UrlCheckerPage";
 import NotFound from "./pages/NotFound";
 import HomePage from "./pages/HomePage";
+import Contact from "./pages/Contact";
+import UserManual from "./pages/UserManual";
 
 // Create a client
 const queryClient = new QueryClient();
@@ -48,6 +50,16 @@ const App = () => {
               <Route path="/url-checker" element={
                 <MainLayout>
                   <UrlCheckerPage />
+                </MainLayout>
+              } />
+              <Route path="/contact" element={
+                <MainLayout>
+                  <Contact />
+                </MainLayout>
+              } />
+              <Route path="/user-manual" element={
+                <MainLayout>
+                  <UserManual />
                 </MainLayout>
               } />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
