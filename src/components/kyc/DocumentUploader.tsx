@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 interface DocumentUploaderProps {
   userId: string;
   documentType: string;
-  onUpload: (url: string) => void;
+  onUpload: (url: string | null) => void;
   allowedTypes?: string;
 }
 
@@ -41,10 +41,41 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     setProgress(0);
     
     try {
+      // Check if bucket exists, create if not
+      const { data: buckets, error: bucketsError } = await supabase
+        .storage
+        .listBuckets();
+      
+      if (bucketsError) {
+        throw new Error(`Error checking buckets: ${bucketsError.message}`);
+      }
+      
+      const userDocumentsBucket = buckets?.find(b => b.name === 'user_documents');
+      
+      if (!userDocumentsBucket) {
+        toast({
+          title: "Storage Error",
+          description: "Storage bucket not found. Please contact support.",
+          variant: "destructive",
+        });
+        throw new Error("Storage bucket 'user_documents' not found");
+      }
+      
       // Create a sanitized filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${documentType.replace(/\s+/g, '_')}_${new Date().getTime()}.${fileExt}`;
       const filePath = `${userId}/${fileName}`;
+      
+      // Start upload progress simulation for UI feedback
+      let progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return 95;
+          }
+          return prev + 5;
+        });
+      }, 100);
       
       // Upload to Supabase Storage
       const { data, error } = await supabase.storage
@@ -54,7 +85,12 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
           upsert: true,
         });
       
+      clearInterval(progressInterval);
+      
       if (error) throw error;
+      
+      // Set progress to 100% when complete
+      setProgress(100);
       
       // Get public URL
       const { data: publicUrlData } = supabase.storage
@@ -68,14 +104,6 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
         title: "Document Uploaded",
         description: `Your ${documentType} has been successfully uploaded`,
       });
-      
-      // Simulate progress for better UX
-      let currentProgress = 0;
-      const interval = setInterval(() => {
-        currentProgress += 10;
-        setProgress(Math.min(currentProgress, 100));
-        if (currentProgress >= 100) clearInterval(interval);
-      }, 100);
       
     } catch (error: any) {
       console.error("Error uploading document:", error);
@@ -92,7 +120,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const resetUpload = () => {
     setFile(null);
     setUploadedUrl(null);
-    onUpload("");
+    onUpload(null);
     if (inputRef.current) {
       inputRef.current.value = "";
     }

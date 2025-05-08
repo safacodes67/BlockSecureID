@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Camera, XCircle, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Progress } from "@/components/ui/progress";
 
 interface CameraCaptureProps {
   onCapture: (imageData: string | null) => void;
@@ -19,10 +20,16 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, userId }) => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   // Initialize camera
   const startCamera = async () => {
     try {
+      // Reset previous errors
+      setCameraError(null);
+      
+      // Request camera permissions
       const cameraStream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
           facingMode: "user",
@@ -31,14 +38,17 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, userId }) => {
         } 
       });
       
+      setHasPermission(true);
       setStream(cameraStream);
       setIsActive(true);
       
       if (videoRef.current) {
         videoRef.current.srcObject = cameraStream;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error accessing camera:", error);
+      setHasPermission(false);
+      setCameraError(error.message || "Unable to access your camera");
       toast({
         title: "Camera Error",
         description: "Unable to access your camera. Please check permissions.",
@@ -70,9 +80,10 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, userId }) => {
       // Draw video frame to canvas
       if (context) {
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = canvas.toDataURL('image/jpeg');
+        const imageData = canvas.toDataURL('image/jpeg', 0.9);
         setCapturedImage(imageData);
         onCapture(imageData);
+        stopCamera(); // Stop the camera after capture
       }
     }
   };
@@ -81,6 +92,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, userId }) => {
   const retakePicture = () => {
     setCapturedImage(null);
     onCapture(null);
+    startCamera();
   };
 
   // Upload image to Supabase Storage
@@ -98,6 +110,37 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, userId }) => {
       // Generate a unique filename
       const filename = `face_${new Date().getTime()}.jpg`;
       const filePath = `${userId}/${filename}`;
+
+      // Progress simulation for better UX
+      let progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 95) {
+            clearInterval(progressInterval);
+            return 95;
+          }
+          return prev + 5;
+        });
+      }, 100);
+      
+      // Check if bucket exists
+      const { data: buckets, error: bucketsError } = await supabase
+        .storage
+        .listBuckets();
+      
+      if (bucketsError) {
+        throw new Error(`Error checking buckets: ${bucketsError.message}`);
+      }
+      
+      const userDocumentsBucket = buckets?.find(b => b.name === 'user_documents');
+      
+      if (!userDocumentsBucket) {
+        toast({
+          title: "Storage Error",
+          description: "Storage bucket not found. Please contact support.",
+          variant: "destructive",
+        });
+        throw new Error("Storage bucket 'user_documents' not found");
+      }
       
       // Upload to Supabase Storage
       const { data, error } = await supabase.storage
@@ -108,16 +151,30 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, userId }) => {
           contentType: 'image/jpeg',
         });
       
+      clearInterval(progressInterval);
+      
       if (error) throw error;
+      
+      setUploadProgress(100);
       
       // Get public URL
       const { data: publicURLData } = supabase.storage
         .from('user_documents')
         .getPublicUrl(filePath);
       
+      // Update user's face_registered status
+      const { error: userUpdateError } = await supabase
+        .from("user_identities")
+        .update({ face_registered: true })
+        .eq("id", userId);
+        
+      if (userUpdateError) {
+        console.error("Error updating user face registration status:", userUpdateError);
+      }
+      
       toast({
-        title: "Image Uploaded",
-        description: "Your facial image has been successfully uploaded",
+        title: "Face Registration Complete",
+        description: "Your facial image has been successfully registered",
       });
       
       // Add the URL to the input
@@ -144,7 +201,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, userId }) => {
 
   return (
     <div className="space-y-4">
-      {!isActive && !capturedImage ? (
+      {!isActive && !capturedImage && hasPermission !== false ? (
         <div className="flex justify-center">
           <Button 
             onClick={startCamera} 
@@ -157,13 +214,21 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, userId }) => {
         </div>
       ) : null}
       
+      {hasPermission === false && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
+          <h3 className="font-medium mb-2">Camera Access Denied</h3>
+          <p className="text-sm">{cameraError || "Please grant camera permissions in your browser settings and refresh the page."}</p>
+        </div>
+      )}
+      
       {isActive && !capturedImage ? (
         <div className="space-y-4">
           <div className="relative bg-black rounded-md overflow-hidden">
             <video 
               ref={videoRef} 
               autoPlay 
-              playsInline 
+              playsInline
+              muted
               className="w-full h-auto"
             />
           </div>
@@ -198,6 +263,13 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, userId }) => {
               className="w-full h-auto"
             />
           </div>
+          
+          {isUploading && (
+            <div className="w-full">
+              <Progress value={uploadProgress} className="h-2" />
+              <p className="text-xs text-center mt-1">{uploadProgress}%</p>
+            </div>
+          )}
           
           <div className="flex justify-center space-x-2">
             {isUploading ? (

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Check, CheckCircle, X, PlusCircle, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +27,7 @@ const LoansPage = () => {
   const [showNewLoanDialog, setShowNewLoanDialog] = useState(false);
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [showLoanDetailsDialog, setShowLoanDetailsDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
   
   // New loan form states
   const [loanAmount, setLoanAmount] = useState("");
@@ -182,7 +184,7 @@ const LoansPage = () => {
     setSubmittingLoan(true);
     
     try {
-      // Insert new loan using raw SQL with a single object (not an array)
+      // Insert new loan using RPC function
       const { data, error } = await supabase
         .rpc('insert_loan', {
           p_borrower_id: userId,
@@ -195,9 +197,6 @@ const LoansPage = () => {
         });
       
       if (error) throw error;
-      
-      // Add the new loan to the list
-      const selectedBank = banksList.find(bank => bank.id === bankId);
       
       toast({
         title: "Loan Application Submitted",
@@ -268,6 +267,11 @@ const LoansPage = () => {
     }
   };
 
+  // Filter loans by status
+  const filteredLoans = activeTab === "all" 
+    ? loans 
+    : loans.filter(loan => loan.status === activeTab);
+
   return (
     <div className="container mx-auto py-6">
       <div className="flex justify-between items-center mb-6">
@@ -281,15 +285,29 @@ const LoansPage = () => {
         )}
       </div>
       
+      {/* Tabs for filtering */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
+        <TabsList>
+          <TabsTrigger value="all">All Loans</TabsTrigger>
+          <TabsTrigger value="approved">Approved</TabsTrigger>
+          <TabsTrigger value="rejected">Rejected</TabsTrigger>
+          <TabsTrigger value="pending">Pending</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      
       {loading ? (
         <div className="flex justify-center p-12">
           <p>Loading loans...</p>
         </div>
-      ) : loans.length === 0 ? (
+      ) : filteredLoans.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center p-12">
-            <p className="text-lg text-gray-500 mb-4">No loans found</p>
-            {!isBank && (
+            <p className="text-lg text-gray-500 mb-4">
+              {activeTab === "all" 
+                ? "No loans found" 
+                : `No ${activeTab} loans found`}
+            </p>
+            {!isBank && activeTab === "all" && (
               <Button onClick={() => setShowNewLoanDialog(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Apply for Your First Loan
@@ -299,7 +317,7 @@ const LoansPage = () => {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {loans.map((loan) => (
+          {filteredLoans.map((loan) => (
             <Card key={loan.id} className="overflow-hidden">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
@@ -394,14 +412,14 @@ const LoansPage = () => {
                   <DocumentUploader
                     userId={userId}
                     documentType="Income Proof"
-                    onUpload={setIncomeProofUrl}
+                    onUpload={(url) => setIncomeProofUrl(url || null)}
                     allowedTypes=".jpg,.jpeg,.png,.pdf"
                   />
                   
                   <DocumentUploader
                     userId={userId}
                     documentType="Collateral Proof"
-                    onUpload={setCollateralProofUrl}
+                    onUpload={(url) => setCollateralProofUrl(url || null)}
                     allowedTypes=".jpg,.jpeg,.png,.pdf"
                   />
                 </>
