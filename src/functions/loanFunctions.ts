@@ -58,3 +58,99 @@ BEGIN
 END;
 $$;
 `;
+
+export const get_user_loans = `
+CREATE OR REPLACE FUNCTION get_user_loans(user_id UUID)
+RETURNS TABLE (
+  id UUID,
+  created_at TIMESTAMPTZ,
+  borrower_id UUID,
+  bank_id UUID,
+  loan_amount DECIMAL,
+  loan_purpose TEXT,
+  status TEXT,
+  documents JSONB,
+  face_verified BOOLEAN,
+  manager_verified BOOLEAN,
+  bank_name TEXT,
+  borrower_name TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    l.id,
+    l.created_at,
+    l.borrower_id,
+    l.bank_id,
+    l.loan_amount,
+    l.loan_purpose,
+    l.status,
+    l.documents,
+    l.face_verified,
+    l.manager_verified,
+    be.bank_name,
+    ui.name as borrower_name
+  FROM 
+    loans l
+  LEFT JOIN
+    bank_entities be ON l.bank_id = be.id
+  LEFT JOIN
+    user_identities ui ON l.borrower_id = ui.id
+  WHERE
+    l.borrower_id = user_id
+  ORDER BY
+    l.created_at DESC;
+END;
+$$;
+`;
+
+export const get_bank_loans = `
+CREATE OR REPLACE FUNCTION get_bank_loans(bank_id UUID)
+RETURNS TABLE (
+  id UUID,
+  created_at TIMESTAMPTZ,
+  borrower_id UUID,
+  bank_id UUID,
+  loan_amount DECIMAL,
+  loan_purpose TEXT,
+  status TEXT,
+  documents JSONB,
+  face_verified BOOLEAN,
+  manager_verified BOOLEAN,
+  bank_name TEXT,
+  borrower_name TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    l.id,
+    l.created_at,
+    l.borrower_id,
+    l.bank_id,
+    l.loan_amount,
+    l.loan_purpose,
+    l.status,
+    l.documents,
+    l.face_verified,
+    l.manager_verified,
+    be.bank_name,
+    ui.name as borrower_name
+  FROM 
+    loans l
+  LEFT JOIN
+    bank_entities be ON l.bank_id = be.id
+  LEFT JOIN
+    user_identities ui ON l.borrower_id = ui.id
+  WHERE
+    l.bank_id = bank_id
+  ORDER BY
+    l.created_at DESC;
+END;
+$$;
+`;

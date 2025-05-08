@@ -110,22 +110,13 @@ const LoansPage = () => {
   // Load loans for a user
   const loadUserLoans = async (userId: string) => {
     try {
-      // Since the loans table might not be in the TypeScript definitions yet, we use any type
+      // Create a custom SQL query using Supabase
       const { data, error } = await supabase
-        .from('loans')
-        .select('*, bank_entities(bank_name)')
-        .eq('borrower_id', userId)
-        .order('created_at', { ascending: false });
+        .rpc('get_user_loans', { user_id: userId });
       
       if (error) throw error;
       
-      // Format the loans data
-      const formattedLoans = data.map((loan: any) => ({
-        ...loan,
-        bank_name: loan.bank_entities?.bank_name
-      }));
-      
-      setLoans(formattedLoans);
+      setLoans(data || []);
     } catch (error) {
       console.error("Error loading loans:", error);
       toast({
@@ -141,22 +132,13 @@ const LoansPage = () => {
   // Load loans for a bank
   const loadBankLoans = async (bankId: string) => {
     try {
-      // Since the loans table might not be in the TypeScript definitions yet, we use any type
+      // Create a custom SQL query using Supabase
       const { data, error } = await supabase
-        .from('loans')
-        .select('*, user_identities(name)')
-        .eq('bank_id', bankId)
-        .order('created_at', { ascending: false });
+        .rpc('get_bank_loans', { bank_id: bankId });
       
       if (error) throw error;
       
-      // Format the loans data
-      const formattedLoans = data.map((loan: any) => ({
-        ...loan,
-        borrower_name: loan.user_identities?.name
-      }));
-      
-      setLoans(formattedLoans);
+      setLoans(data || []);
     } catch (error) {
       console.error("Error loading loans:", error);
       toast({
@@ -217,28 +199,13 @@ const LoansPage = () => {
       // Add the new loan to the list
       const selectedBank = banksList.find(bank => bank.id === bankId);
       
-      // Load the newly created loan
-      const { data: newLoanData, error: newLoanError } = await supabase
-        .from('loans')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .eq('borrower_id', userId);
-      
-      if (newLoanError) throw newLoanError;
-      
-      if (newLoanData && newLoanData[0]) {
-        const newLoan: Loan = {
-          ...newLoanData[0],
-          bank_name: selectedBank?.bank_name
-        };
-        setLoans([newLoan, ...loans]);
-      }
-      
       toast({
         title: "Loan Application Submitted",
         description: "Your loan application has been submitted for review",
       });
+      
+      // Reload the user's loans
+      loadUserLoans(userId);
       
       // Reset form and close dialog
       setLoanAmount("");

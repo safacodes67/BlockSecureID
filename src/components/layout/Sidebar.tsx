@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { 
   Shield, Home, UserCircle, FileCheck, Flag, Menu, X, Search, Book, LogOut
 } from "lucide-react";
-import { connectWallet, switchToMumbaiNetwork } from "@/lib/blockchain";
+import { connectWallet } from "@/lib/blockchain";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -46,11 +46,8 @@ export const Sidebar = () => {
         description: "Please approve the connection request in MetaMask",
       });
       
-      // First connect to wallet
+      // Connect to wallet
       const accounts = await connectWallet();
-      
-      // Then switch to Mumbai network
-      await switchToMumbaiNetwork();
       
       if (accounts && accounts.length > 0) {
         const address = accounts[0];

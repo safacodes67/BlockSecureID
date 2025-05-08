@@ -16,3 +16,15 @@ export interface Loan {
   face_verified?: boolean;
   manager_verified?: boolean;
 }
+
+export interface LoanWithBorrower extends Loan {
+  user_identities?: {
+    name: string;
+  };
+}
+
+export interface LoanWithBank extends Loan {
+  bank_entities?: {
+    bank_name: string;
+  };
+}

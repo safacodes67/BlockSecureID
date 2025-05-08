@@ -39,6 +39,50 @@ export const getWalletFromMnemonic = (mnemonic: string): string => {
   }
 };
 
+// Function to switch to Mumbai testnet
+export const switchToMumbaiNetwork = async () => {
+  if (!window.ethereum) {
+    throw new Error("MetaMask is not installed. Please install MetaMask to continue.");
+  }
+
+  try {
+    // Mumbai testnet parameters
+    const mumbaiChainId = '0x13881'; // 80001 in decimal
+    
+    await window.ethereum.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: mumbaiChainId }],
+    }).catch(async (switchError: any) => {
+      // If the network is not added to MetaMask, add it
+      if (switchError.code === 4902) {
+        await window.ethereum.request({
+          method: 'wallet_addEthereumChain',
+          params: [
+            {
+              chainId: mumbaiChainId,
+              chainName: 'Polygon Mumbai Testnet',
+              nativeCurrency: {
+                name: 'MATIC',
+                symbol: 'MATIC',
+                decimals: 18,
+              },
+              rpcUrls: ['https://rpc-mumbai.maticvigil.com'],
+              blockExplorerUrls: ['https://mumbai.polygonscan.com/'],
+            },
+          ],
+        });
+      } else {
+        throw switchError;
+      }
+    });
+    
+    return true;
+  } catch (error) {
+    console.error("Error switching to Mumbai network:", error);
+    throw new Error("Failed to switch to Mumbai network. Please try manually in MetaMask.");
+  }
+};
+
 // Declare ethereum on window object
 declare global {
   interface Window {

@@ -92,85 +92,103 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const resetUpload = () => {
     setFile(null);
     setUploadedUrl(null);
-    setProgress(0);
+    onUpload("");
     if (inputRef.current) {
-      inputRef.current.value = '';
+      inputRef.current.value = "";
     }
   };
 
   return (
-    <div className="space-y-4">
-      <Label htmlFor={`document-${documentType}`}>{documentType}</Label>
+    <div className="border rounded-md p-4">
+      <Label className="text-sm font-medium mb-2 block">{documentType}</Label>
       
       {!uploadedUrl ? (
-        <>
-          <div className="flex items-center gap-2">
-            <Input
-              id={`document-${documentType}`}
-              type="file"
+        <div className="space-y-3">
+          <div className="flex items-center">
+            <Input 
+              type="file" 
               ref={inputRef}
-              accept={allowedTypes}
               onChange={handleFileChange}
-              disabled={uploading}
+              accept={allowedTypes}
+              className="text-sm"
             />
-            
-            {file && !uploading && (
-              <Button 
-                type="button" 
-                onClick={handleUpload}
-                size="sm"
-              >
-                <Upload className="h-4 w-4 mr-1" />
-                Upload
-              </Button>
-            )}
-            
-            {uploading && (
-              <Button 
-                disabled 
-                size="sm"
-              >
-                Uploading...
-              </Button>
-            )}
           </div>
           
           {file && (
-            <div className="flex items-center justify-between bg-gray-50 p-2 rounded border text-sm">
-              <div className="flex items-center">
-                <File className="h-4 w-4 mr-2 text-gray-500" />
-                <span className="truncate max-w-[180px]">{file.name}</span>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center text-sm">
+                <File className="h-4 w-4 mr-2 text-blue-500" />
+                <span className="truncate max-w-[200px]">{file.name}</span>
+                <span className="ml-2 text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
               </div>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={resetUpload}
-                disabled={uploading}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              
+              <div className="flex space-x-2">
+                <Button 
+                  type="button" 
+                  onClick={handleUpload}
+                  disabled={uploading}
+                  size="sm"
+                  className="text-xs"
+                >
+                  {uploading ? "Uploading..." : "Upload"}
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={resetUpload}
+                  size="sm"
+                  className="text-xs"
+                  disabled={uploading}
+                >
+                  Cancel
+                </Button>
+              </div>
+              
+              {uploading && (
+                <div className="w-full">
+                  <Progress value={progress} className="h-1" />
+                  <p className="text-xs text-center mt-1">{progress}%</p>
+                </div>
+              )}
             </div>
           )}
-          
-          {uploading && (
-            <Progress value={progress} className="h-1" />
-          )}
-        </>
+        </div>
       ) : (
-        <div className="flex items-center justify-between bg-green-50 p-2 rounded border border-green-200 text-sm">
-          <div className="flex items-center text-green-700">
-            <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-            <span>Document uploaded successfully</span>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center bg-green-50 text-green-700 p-2 rounded-md">
+            <CheckCircle className="h-4 w-4 mr-2" />
+            <span className="text-sm">Document uploaded successfully</span>
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={resetUpload}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+          
+          <div className="flex space-x-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="text-xs"
+              asChild
+            >
+              <a href={uploadedUrl} target="_blank" rel="noopener noreferrer">
+                View Document
+              </a>
+            </Button>
+            <Button 
+              type="button" 
+              variant="outline" 
+              size="sm"
+              className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={resetUpload}
+            >
+              <X className="h-3 w-3 mr-1" />
+              Remove
+            </Button>
+          </div>
         </div>
       )}
+      
+      <p className="text-xs text-gray-500 mt-3">
+        Accepted file types: {allowedTypes.replace(/\./g, '').replace(/,/g, ', ')}
+      </p>
     </div>
   );
 };
