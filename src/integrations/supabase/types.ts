@@ -16,7 +16,7 @@ export type Database = {
           created_at: string
           id: string
           ifsc_code: string
-          manager_code: string
+          manager_code: string | null
           mnemonic_phrase: string
           wallet_address: string | null
         }
@@ -26,7 +26,7 @@ export type Database = {
           created_at?: string
           id?: string
           ifsc_code: string
-          manager_code: string
+          manager_code?: string | null
           mnemonic_phrase: string
           wallet_address?: string | null
         }
@@ -36,7 +36,7 @@ export type Database = {
           created_at?: string
           id?: string
           ifsc_code?: string
-          manager_code?: string
+          manager_code?: string | null
           mnemonic_phrase?: string
           wallet_address?: string | null
         }
@@ -67,6 +67,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string
+          face_registered: boolean | null
           id: string
           mnemonic_phrase: string
           mobile: string
@@ -76,6 +77,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email: string
+          face_registered?: boolean | null
           id?: string
           mnemonic_phrase: string
           mobile: string
@@ -85,6 +87,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string
+          face_registered?: boolean | null
           id?: string
           mnemonic_phrase?: string
           mobile?: string

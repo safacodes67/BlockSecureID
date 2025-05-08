@@ -12,7 +12,10 @@ import Consents from "./pages/Consents";
 import FraudReports from "./pages/FraudReports";
 import UrlCheckerPage from "./pages/UrlCheckerPage";
 import NotFound from "./pages/NotFound";
-import HomePage from "./pages/HomePage";
+import Index from "./pages/Index";
+import AuthPage from "./pages/AuthPage";
+import KYCPage from "./pages/KYCPage";
+import LoansPage from "./pages/LoansPage";
 import Contact from "./pages/Contact";
 import UserManual from "./pages/UserManual";
 
@@ -25,7 +28,8 @@ const App = () => {
       <TooltipProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<AuthPage />} />
             <Route path="/dashboard" element={
               <MainLayout>
                 <Dashboard />
@@ -34,6 +38,16 @@ const App = () => {
             <Route path="/identity" element={
               <MainLayout>
                 <Identity />
+              </MainLayout>
+            } />
+            <Route path="/kyc" element={
+              <MainLayout>
+                <KYCPage />
+              </MainLayout>
+            } />
+            <Route path="/loans" element={
+              <MainLayout>
+                <LoansPage />
               </MainLayout>
             } />
             <Route path="/consents" element={

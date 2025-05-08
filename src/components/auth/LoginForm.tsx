@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight, KeyRound, AlertTriangle, Camera } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import CameraCapture from "@/components/kyc/CameraCapture";
 
 interface LoginFormProps {
   userType: "user" | "bank";
@@ -23,6 +24,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ userType }) => {
   const [showRecovery, setShowRecovery] = useState(false);
   const [recoveryPhrase, setRecoveryPhrase] = useState("");
   const [showFacialRecovery, setShowFacialRecovery] = useState(false);
+  const [tempUserId, setTempUserId] = useState<string | null>(null);
 
   // Login with email and password
   const handleLogin = async (e: React.FormEvent) => {
@@ -190,25 +192,66 @@ export const LoginForm: React.FC<LoginFormProps> = ({ userType }) => {
     }
   };
 
-  // Facial Recognition Recovery
-  const handleFacialRecovery = () => {
-    setShowFacialRecovery(true);
-    // This would typically integrate with a facial recognition API
-    toast({
-      title: "Facial Recognition",
-      description: "Please look at the camera to verify your identity",
-    });
+  // Prepare for Facial Recovery by finding user
+  const startFacialRecovery = async () => {
+    if (!email) {
+      toast({
+        title: "Email Required",
+        description: "Please enter your email address to start facial recognition",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Find user by email
+      const { data, error } = await supabase
+        .from("user_identities")
+        .select("id, face_registered")
+        .eq("email", email)
+        .single();
+      
+      if (error) throw error;
+      
+      if (!data.face_registered) {
+        toast({
+          title: "Face Not Registered",
+          description: "You haven't registered your face for recovery yet",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Store the user ID temporarily
+      setTempUserId(data.id);
+      setShowFacialRecovery(true);
+      
+    } catch (error: any) {
+      console.error("Error finding user:", error);
+      toast({
+        title: "User Not Found",
+        description: "No account found with this email address",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handle facial recognition verification
+  const handleFacialVerification = (imageData: string | null) => {
+    if (!imageData) return;
     
-    // Simulate facial recognition for demo purposes
+    // In a real application, you would compare this image with the stored face image
+    // For demo purposes, we'll simulate successful verification
+    
     setTimeout(() => {
+      // Success - would normally be based on actual face comparison
       toast({
         title: "Identity Verified",
-        description: "Your recovery phrase will be displayed",
+        description: "Your recovery phrase will be sent to your email",
       });
       
-      // In a real implementation, this would fetch the user's recovery phrase after verification
       setShowFacialRecovery(false);
-    }, 3000);
+    }, 2000);
   };
 
   return (
@@ -261,7 +304,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ userType }) => {
           
           <Button 
             variant="outline"
-            onClick={handleFacialRecovery}
+            onClick={startFacialRecovery}
             className="text-sm"
           >
             <Camera className="h-4 w-4 mr-2" /> Facial Recognition
@@ -306,16 +349,24 @@ export const LoginForm: React.FC<LoginFormProps> = ({ userType }) => {
           <DialogHeader>
             <DialogTitle>Facial Recognition</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 text-center">
-            <div className="w-full h-64 bg-gray-100 rounded-md border-2 border-dashed border-gray-300 flex items-center justify-center">
-              <Camera className="h-20 w-20 text-gray-400" />
-            </div>
-            <p className="text-sm">
-              Position your face in the center of the frame to verify your identity.
-            </p>
-            <div className="flex justify-center">
-              <Button variant="outline" onClick={() => setShowFacialRecovery(false)}>Cancel</Button>
-            </div>
+          <div className="space-y-4">
+            {tempUserId ? (
+              <CameraCapture
+                onCapture={handleFacialVerification}
+                userId={tempUserId}
+              />
+            ) : (
+              <div className="text-center">
+                <p>Please enter your email address first</p>
+                <Button 
+                  variant="outline" 
+                  className="mt-4" 
+                  onClick={() => setShowFacialRecovery(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

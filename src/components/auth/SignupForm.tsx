@@ -1,5 +1,5 @@
-
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -7,12 +7,14 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight, Camera, EyeOff, Eye, CheckCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import CameraCapture from "@/components/kyc/CameraCapture";
 
 interface SignupFormProps {
   userType: "user" | "bank";
 }
 
 export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -20,6 +22,8 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
   const [showMnemonic, setShowMnemonic] = useState(false);
   const [isFaceRegistered, setIsFaceRegistered] = useState(false);
   const [showFaceRegistration, setShowFaceRegistration] = useState(false);
+  const [faceImageUrl, setFaceImageUrl] = useState<string | null>(null);
+  const [tempUserId, setTempUserId] = useState<string | null>(null);
   
   // User form states
   const [userName, setUserName] = useState("");
@@ -131,6 +135,20 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
         throw error;
       }
       
+      // If face is registered, update with face image URL
+      if (isFaceRegistered && faceImageUrl && data[0].id) {
+        const { error: updateError } = await supabase
+          .from('user_identities')
+          .update({
+            face_image_url: faceImageUrl
+          })
+          .eq('id', data[0].id);
+          
+        if (updateError) {
+          console.error("Error updating face image URL:", updateError);
+        }
+      }
+      
       toast({
         title: "Registration Successful",
         description: "Your identity has been created and stored in the database.",
@@ -200,7 +218,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
             ifsc_code: ifscCode,
             manager_code: managerCode,
             mnemonic_phrase: mnemonic,
-            email: bankEmail,
             face_registered: isFaceRegistered
           }
         ])
@@ -208,6 +225,20 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
       
       if (error) {
         throw error;
+      }
+      
+      // If face is registered, update with face image URL
+      if (isFaceRegistered && faceImageUrl && data[0].id) {
+        const { error: updateError } = await supabase
+          .from('bank_entities')
+          .update({
+            face_image_url: faceImageUrl
+          })
+          .eq('id', data[0].id);
+          
+        if (updateError) {
+          console.error("Error updating face image URL:", updateError);
+        }
       }
       
       // Mark manager code as used
@@ -242,19 +273,26 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
     }
   };
 
+  // Handle facial registration
   const handleFaceRegistration = () => {
+    // Generate a temporary ID for file storage
+    const tempId = `temp-${new Date().getTime()}`;
+    setTempUserId(tempId);
     setShowFaceRegistration(true);
-    
-    // In a real implementation, this would connect to a facial recognition API
-    // For demo purposes, we'll simulate the process
-    setTimeout(() => {
+  };
+
+  // Handle captured face image
+  const handleFaceCaptured = (imageUrl: string | null) => {
+    if (imageUrl) {
+      setFaceImageUrl(imageUrl);
       setIsFaceRegistered(true);
       setShowFaceRegistration(false);
+      
       toast({
         title: "Face Registration Successful",
         description: "Your face has been registered for recovery purposes",
       });
-    }, 3000);
+    }
   };
 
   return (
@@ -472,7 +510,10 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
                 This phrase gives you access to your digital identity. Never share it with anyone!
               </p>
             </div>
-            <Button className="w-full" onClick={() => setShowMnemonic(false)}>
+            <Button className="w-full" onClick={() => {
+              setShowMnemonic(false);
+              navigate("/dashboard");
+            }}>
               I've Saved My Recovery Phrase
             </Button>
           </div>
@@ -485,20 +526,13 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
           <DialogHeader>
             <DialogTitle>Register Your Face</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 text-center">
-            <div className="w-full h-64 bg-gray-100 rounded-md border-2 border-dashed border-gray-300 flex items-center justify-center">
-              <Camera className="h-20 w-20 text-gray-400 animate-pulse" />
-            </div>
-            <p className="text-sm">
-              Position your face in the center of the frame and look directly at the camera.
-            </p>
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={() => setShowFaceRegistration(false)}
-            >
-              Cancel
-            </Button>
+          <div className="space-y-4">
+            {tempUserId && (
+              <CameraCapture
+                onCapture={handleFaceCaptured}
+                userId={tempUserId}
+              />
+            )}
           </div>
         </DialogContent>
       </Dialog>
