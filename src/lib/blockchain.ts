@@ -1,63 +1,45 @@
 
 import { ethers } from 'ethers';
 
-// Function to connect MetaMask wallet
+// Function to connect to MetaMask wallet
 export const connectWallet = async () => {
-  if (window.ethereum) {
-    try {
-      // Request account access
-      const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-      return accounts;
-    } catch (error) {
-      throw new Error('User denied account access');
-    }
-  } else {
-    throw new Error('MetaMask not detected. Please install MetaMask extension.');
+  if (!window.ethereum) {
+    throw new Error("MetaMask is not installed. Please install MetaMask to continue.");
+  }
+
+  try {
+    // Request account access
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    return accounts;
+  } catch (error) {
+    console.error("Error connecting to wallet:", error);
+    throw new Error("Failed to connect to wallet. Please try again.");
   }
 };
 
-// Function to switch to Mumbai testnet
-export const switchToMumbaiNetwork = async () => {
-  if (window.ethereum) {
-    try {
-      // Try to switch to Mumbai network
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: '0x13881' }], // Mumbai network chainId
-      });
-    } catch (switchError: any) {
-      // This error code indicates that the chain has not been added to MetaMask
-      if (switchError.code === 4902) {
-        try {
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [
-              {
-                chainId: '0x13881',
-                chainName: 'Polygon Mumbai Testnet',
-                nativeCurrency: {
-                  name: 'MATIC',
-                  symbol: 'MATIC',
-                  decimals: 18,
-                },
-                rpcUrls: ['https://rpc-mumbai.maticvigil.com/'],
-                blockExplorerUrls: ['https://mumbai.polygonscan.com/'],
-              },
-            ],
-          });
-        } catch (addError) {
-          throw new Error('Failed to add Mumbai network to MetaMask');
-        }
-      } else {
-        throw new Error('Failed to switch to Mumbai network');
-      }
-    }
-  } else {
-    throw new Error('MetaMask not detected');
+// Function to check if MetaMask is installed
+export const isMetaMaskInstalled = (): boolean => {
+  return typeof window !== 'undefined' && !!window.ethereum;
+};
+
+// Function to generate a mnemonic
+export const generateMnemonic = (): string => {
+  const wallet = ethers.Wallet.createRandom();
+  return wallet.mnemonic?.phrase || '';
+};
+
+// Function to get wallet from mnemonic
+export const getWalletFromMnemonic = (mnemonic: string): string => {
+  try {
+    const wallet = ethers.Wallet.fromPhrase(mnemonic);
+    return wallet.address;
+  } catch (error) {
+    console.error("Invalid mnemonic:", error);
+    throw new Error("Invalid mnemonic provided");
   }
 };
 
-// Initialize ethereum type for window
+// Declare ethereum on window object
 declare global {
   interface Window {
     ethereum: any;

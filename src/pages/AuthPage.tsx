@@ -18,6 +18,20 @@ const AuthPage = () => {
   const [activeTab, setActiveTab] = useState(state?.defaultTab || "login");
   const [userType, setUserType] = useState<"user" | "bank">("user");
 
+  // Check for authenticated session
+  useEffect(() => {
+    const checkAuth = async () => {
+      const userAuth = localStorage.getItem("userAuth");
+      const bankAuth = localStorage.getItem("bankAuth");
+      
+      if (userAuth || bankAuth) {
+        navigate("/dashboard");
+      }
+    };
+    
+    checkAuth();
+  }, [navigate]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-purple-900 flex items-center justify-center py-12 px-4">
       <div className="max-w-md w-full">

@@ -3,33 +3,17 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Check, CheckCircle, Clock, X, PlusCircle, ArrowRight } from "lucide-react";
+import { Check, CheckCircle, X, PlusCircle, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import DocumentUploader from "@/components/kyc/DocumentUploader";
-
-interface Loan {
-  id: string;
-  created_at: string;
-  borrower_id: string;
-  bank_id: string;
-  loan_amount: number;
-  loan_purpose: string;
-  status: "pending" | "approved" | "rejected";
-  documents: {
-    income_proof?: string;
-    collateral_proof?: string;
-  };
-  borrower_name?: string;
-  bank_name?: string;
-}
+import { Loan } from "@/types/loans";
 
 const LoansPage = () => {
   const navigate = useNavigate();
@@ -126,14 +110,12 @@ const LoansPage = () => {
   // Load loans for a user
   const loadUserLoans = async (userId: string) => {
     try {
+      // Since the loans table might not be in the TypeScript definitions yet, we use any type
       const { data, error } = await supabase
-        .from("loans")
-        .select(`
-          *,
-          bank_entities(bank_name)
-        `)
-        .eq("borrower_id", userId)
-        .order("created_at", { ascending: false });
+        .from('loans')
+        .select('*, bank_entities(bank_name)')
+        .eq('borrower_id', userId)
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       
@@ -159,14 +141,12 @@ const LoansPage = () => {
   // Load loans for a bank
   const loadBankLoans = async (bankId: string) => {
     try {
+      // Since the loans table might not be in the TypeScript definitions yet, we use any type
       const { data, error } = await supabase
-        .from("loans")
-        .select(`
-          *,
-          user_identities(name)
-        `)
-        .eq("bank_id", bankId)
-        .order("created_at", { ascending: false });
+        .from('loans')
+        .select('*, user_identities(name)')
+        .eq('bank_id', bankId)
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       
@@ -220,31 +200,36 @@ const LoansPage = () => {
     setSubmittingLoan(true);
     
     try {
-      // Insert new loan
+      // Insert new loan using raw SQL with a single object (not an array)
       const { data, error } = await supabase
-        .from("loans")
-        .insert([
-          {
-            borrower_id: userId,
-            bank_id: bankId,
-            loan_amount: parseFloat(loanAmount),
-            loan_purpose: loanPurpose,
-            status: "pending",
-            documents: {
-              income_proof: incomeProofUrl,
-              collateral_proof: collateralProofUrl
-            }
-          }
-        ])
-        .select();
+        .rpc('insert_loan', {
+          p_borrower_id: userId,
+          p_bank_id: bankId,
+          p_loan_amount: parseFloat(loanAmount),
+          p_loan_purpose: loanPurpose,
+          p_status: 'pending',
+          p_income_proof: incomeProofUrl,
+          p_collateral_proof: collateralProofUrl
+        });
       
       if (error) throw error;
       
-      // Add loan to the list
-      if (data && data[0]) {
-        const selectedBank = banksList.find(bank => bank.id === bankId);
-        const newLoan = {
-          ...data[0],
+      // Add the new loan to the list
+      const selectedBank = banksList.find(bank => bank.id === bankId);
+      
+      // Load the newly created loan
+      const { data: newLoanData, error: newLoanError } = await supabase
+        .from('loans')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .eq('borrower_id', userId);
+      
+      if (newLoanError) throw newLoanError;
+      
+      if (newLoanData && newLoanData[0]) {
+        const newLoan: Loan = {
+          ...newLoanData[0],
           bank_name: selectedBank?.bank_name
         };
         setLoans([newLoan, ...loans]);
@@ -287,9 +272,10 @@ const LoansPage = () => {
     
     try {
       const { error } = await supabase
-        .from("loans")
-        .update({ status })
-        .eq("id", loanId);
+        .rpc('update_loan_status', {
+          p_loan_id: loanId,
+          p_status: status
+        });
       
       if (error) throw error;
       

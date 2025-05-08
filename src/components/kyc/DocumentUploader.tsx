@@ -43,7 +43,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     try {
       // Create a sanitized filename
       const fileExt = file.name.split('.').pop();
-      const fileName = `${documentType}_${new Date().getTime()}.${fileExt}`;
+      const fileName = `${documentType.replace(/\s+/g, '_')}_${new Date().getTime()}.${fileExt}`;
       const filePath = `${userId}/${fileName}`;
       
       // Upload to Supabase Storage
@@ -69,6 +69,14 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
         description: `Your ${documentType} has been successfully uploaded`,
       });
       
+      // Simulate progress for better UX
+      let currentProgress = 0;
+      const interval = setInterval(() => {
+        currentProgress += 10;
+        setProgress(Math.min(currentProgress, 100));
+        if (currentProgress >= 100) clearInterval(interval);
+      }, 100);
+      
     } catch (error: any) {
       console.error("Error uploading document:", error);
       toast({
@@ -84,6 +92,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
   const resetUpload = () => {
     setFile(null);
     setUploadedUrl(null);
+    setProgress(0);
     if (inputRef.current) {
       inputRef.current.value = '';
     }
