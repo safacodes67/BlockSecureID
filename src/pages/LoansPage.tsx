@@ -1,51 +1,37 @@
 
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, CheckCircle, X, PlusCircle, ArrowRight } from "lucide-react";
+import { DollarSign, Plus, List, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import DocumentUploader from "@/components/kyc/DocumentUploader";
-import { Loan } from "@/types/loans";
+import LoanApplicationForm from "@/components/loans/LoanApplicationForm";
+import LoanApplicationsList from "@/components/loans/LoanApplicationsList";
 
 const LoansPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [loans, setLoans] = useState<Loan[]>([]);
-  const [isBank, setIsBank] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [showNewLoanDialog, setShowNewLoanDialog] = useState(false);
-  const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
-  const [showLoanDetailsDialog, setShowLoanDetailsDialog] = useState(false);
-  const [activeTab, setActiveTab] = useState("all");
-  
-  // New loan form states
-  const [loanAmount, setLoanAmount] = useState("");
-  const [loanPurpose, setLoanPurpose] = useState("");
-  const [bankId, setBankId] = useState("");
-  const [banksList, setBanksList] = useState<{ id: string, bank_name: string }[]>([]);
-  const [incomeProofUrl, setIncomeProofUrl] = useState<string | null>(null);
-  const [collateralProofUrl, setCollateralProofUrl] = useState<string | null>(null);
-  const [submittingLoan, setSubmittingLoan] = useState(false);
-  
-  // Check auth status and load loans
+  const [loading, setLoading] = useState(true);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [activeTab, setActiveTab] = useState("overview");
+
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        // Get current session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        // Check local storage for auth
+        const userAuth = localStorage.getItem("userAuth");
+        if (!userAuth) {
           toast({
             title: "Authentication Required",
             description: "You must be logged in to access loans",
@@ -55,490 +41,195 @@ const LoansPage = () => {
           return;
         }
         
+        const userData = JSON.parse(userAuth);
+        setUserEmail(userData.email);
+        
+        // Get user ID from user_identities table
+        const { data: userIdentity, error: userError } = await supabase
+          .from("user_identities")
+          .select("id")
+          .eq("email", userData.email)
+          .single();
+          
+        if (userError || !userIdentity) {
+          toast({
+            title: "User Not Found",
+            description: "Your user profile was not found in the system",
+            variant: "destructive",
+          });
+          navigate("/dashboard");
+          return;
+        }
+        
+        setUserId(userIdentity.id);
+      } else {
         setUserEmail(session.user.email);
         
-        // Check if user is individual or bank
-        const bankAuth = localStorage.getItem("bankAuth");
-        if (bankAuth) {
-          setIsBank(true);
-          const bankData = JSON.parse(bankAuth);
+        // Get user ID from user_identities table
+        const { data: userIdentity, error: userError } = await supabase
+          .from("user_identities")
+          .select("id")
+          .eq("email", session.user.email)
+          .single();
           
-          // Get bank ID from name
-          const { data: bankIdData, error: bankIdError } = await supabase
-            .from("bank_entities")
-            .select("id")
-            .eq("bank_name", bankData.name)
-            .single();
-            
-          if (bankIdError) {
-            console.error("Error getting bank ID:", bankIdError);
-            return;
-          }
-          
-          setUserId(bankIdData.id);
-          
-          // Load loans for this bank
-          loadBankLoans(bankIdData.id);
-        } else {
-          // Get user ID from email
-          const { data: userData, error: userError } = await supabase
-            .from("user_identities")
-            .select("id")
-            .eq("email", session.user.email)
-            .single();
-            
-          if (userError) {
-            console.error("Error getting user ID:", userError);
-            return;
-          }
-          
-          setUserId(userData.id);
-          
-          // Load loans for this user
-          loadUserLoans(userData.id);
-          
-          // Load banks list for loan application
-          loadBanks();
+        if (userError || !userIdentity) {
+          toast({
+            title: "User Not Found",
+            description: "Your user profile was not found in the system",
+            variant: "destructive",
+          });
+          navigate("/dashboard");
+          return;
         }
-      } catch (error) {
-        console.error("Error checking auth:", error);
-        navigate("/auth");
+        
+        setUserId(userIdentity.id);
       }
-    };
-    
-    checkAuth();
-  }, [navigate, toast]);
-
-  // Load loans for a user
-  const loadUserLoans = async (userId: string) => {
-    try {
-      // Create a custom SQL query using Supabase
-      const { data, error } = await supabase
-        .rpc('get_user_loans', { user_id: userId });
       
-      if (error) throw error;
-      
-      setLoans(data || []);
-    } catch (error) {
-      console.error("Error loading loans:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load loans",
-        variant: "destructive",
-      });
-    } finally {
       setLoading(false);
-    }
-  };
-
-  // Load loans for a bank
-  const loadBankLoans = async (bankId: string) => {
-    try {
-      // Create a custom SQL query using Supabase
-      const { data, error } = await supabase
-        .rpc('get_bank_loans', { bank_id: bankId });
       
-      if (error) throw error;
-      
-      setLoans(data || []);
     } catch (error) {
-      console.error("Error loading loans:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load loans",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+      console.error("Error checking auth:", error);
+      navigate("/auth");
     }
   };
 
-  // Load banks list
-  const loadBanks = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("bank_entities")
-        .select("id, bank_name");
-      
-      if (error) throw error;
-      
-      setBanksList(data);
-    } catch (error) {
-      console.error("Error loading banks:", error);
-    }
+  const handleApplicationSubmitted = () => {
+    setRefreshTrigger(prev => prev + 1);
+    setActiveTab("applications");
   };
 
-  // Submit new loan application
-  const handleSubmitLoan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!userId || !bankId || !loanAmount || !loanPurpose || !incomeProofUrl || !collateralProofUrl) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields and upload the required documents",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setSubmittingLoan(true);
-    
-    try {
-      // Insert new loan using RPC function
-      const { data, error } = await supabase
-        .rpc('insert_loan', {
-          p_borrower_id: userId,
-          p_bank_id: bankId,
-          p_loan_amount: parseFloat(loanAmount),
-          p_loan_purpose: loanPurpose,
-          p_status: 'pending',
-          p_income_proof: incomeProofUrl,
-          p_collateral_proof: collateralProofUrl
-        });
-      
-      if (error) throw error;
-      
-      toast({
-        title: "Loan Application Submitted",
-        description: "Your loan application has been submitted for review",
-      });
-      
-      // Reload the user's loans
-      loadUserLoans(userId);
-      
-      // Reset form and close dialog
-      setLoanAmount("");
-      setLoanPurpose("");
-      setBankId("");
-      setIncomeProofUrl(null);
-      setCollateralProofUrl(null);
-      setShowNewLoanDialog(false);
-      
-    } catch (error: any) {
-      console.error("Error submitting loan:", error);
-      toast({
-        title: "Submission Error",
-        description: error.message || "Failed to submit loan application",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmittingLoan(false);
-    }
-  };
-
-  // View loan details
-  const handleViewLoan = (loan: Loan) => {
-    setSelectedLoan(loan);
-    setShowLoanDetailsDialog(true);
-  };
-
-  // Update loan status (for banks)
-  const updateLoanStatus = async (loanId: string, status: "approved" | "rejected") => {
-    if (!loanId) return;
-    
-    try {
-      const { error } = await supabase
-        .rpc('update_loan_status', {
-          p_loan_id: loanId,
-          p_status: status
-        });
-      
-      if (error) throw error;
-      
-      // Update loan in the list
-      setLoans(loans.map(loan => 
-        loan.id === loanId ? { ...loan, status } : loan
-      ));
-      
-      toast({
-        title: `Loan ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-        description: `The loan has been ${status}`,
-      });
-      
-      setShowLoanDetailsDialog(false);
-      
-    } catch (error: any) {
-      console.error("Error updating loan status:", error);
-      toast({
-        title: "Update Error",
-        description: error.message || "Failed to update loan status",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Filter loans by status
-  const filteredLoans = activeTab === "all" 
-    ? loans 
-    : loans.filter(loan => loan.status === activeTab);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p>Loading...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">{isBank ? "Loan Applications" : "My Loans"}</h1>
-        
-        {!isBank && (
-          <Button onClick={() => setShowNewLoanDialog(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Apply for Loan
-          </Button>
-        )}
-      </div>
+    <div className="container mx-auto px-4 py-8">
+      <Button 
+        variant="ghost" 
+        className="mb-4" 
+        onClick={() => navigate("/dashboard")}
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+      </Button>
       
-      {/* Tabs for filtering */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-        <TabsList>
-          <TabsTrigger value="all">All Loans</TabsTrigger>
-          <TabsTrigger value="approved">Approved</TabsTrigger>
-          <TabsTrigger value="rejected">Rejected</TabsTrigger>
-          <TabsTrigger value="pending">Pending</TabsTrigger>
-        </TabsList>
-      </Tabs>
-      
-      {loading ? (
-        <div className="flex justify-center p-12">
-          <p>Loading loans...</p>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold mb-2">Loan Management</h1>
+          <p className="text-muted-foreground">Apply for loans and manage your applications</p>
         </div>
-      ) : filteredLoans.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center p-12">
-            <p className="text-lg text-gray-500 mb-4">
-              {activeTab === "all" 
-                ? "No loans found" 
-                : `No ${activeTab} loans found`}
-            </p>
-            {!isBank && activeTab === "all" && (
-              <Button onClick={() => setShowNewLoanDialog(true)}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Apply for Your First Loan
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredLoans.map((loan) => (
-            <Card key={loan.id} className="overflow-hidden">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-xl">
-                    ₹{loan.loan_amount.toLocaleString("en-IN")}
-                  </CardTitle>
-                  <Badge className={
-                    loan.status === "approved" ? "bg-green-100 text-green-800" :
-                    loan.status === "rejected" ? "bg-red-100 text-red-800" :
-                    "bg-yellow-100 text-yellow-800"
-                  }>
-                    {loan.status.toUpperCase()}
-                  </Badge>
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {isBank ? `Applicant: ${loan.borrower_name}` : `Bank: ${loan.bank_name}`}
-                </p>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="apply">Apply for Loan</TabsTrigger>
+            <TabsTrigger value="applications">My Applications</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Available Loan Types</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">7 Types</div>
+                  <p className="text-xs text-muted-foreground">Personal, Business, Education & more</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Interest Rate</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">From 8.5%</div>
+                  <p className="text-xs text-muted-foreground">Competitive rates based on profile</p>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Max Loan Amount</CardTitle>
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">$1M</div>
+                  <p className="text-xs text-muted-foreground">Subject to eligibility</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>How It Works</CardTitle>
+                <CardDescription>Simple steps to get your loan approved</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-sm mb-4 line-clamp-2">{loan.loan_purpose}</p>
-                <div className="text-xs text-gray-500 mb-4">
-                  Applied on {new Date(loan.created_at).toLocaleDateString()}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="text-center">
+                    <div className="bg-primary/10 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-4">
+                      <span className="text-xl font-bold text-primary">1</span>
+                    </div>
+                    <h3 className="font-medium mb-2">Apply</h3>
+                    <p className="text-sm text-muted-foreground">Fill out the loan application with your details</p>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="bg-primary/10 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-4">
+                      <span className="text-xl font-bold text-primary">2</span>
+                    </div>
+                    <h3 className="font-medium mb-2">Review</h3>
+                    <p className="text-sm text-muted-foreground">Our team reviews your application and documents</p>
+                  </div>
+                  
+                  <div className="text-center">
+                    <div className="bg-primary/10 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-4">
+                      <span className="text-xl font-bold text-primary">3</span>
+                    </div>
+                    <h3 className="font-medium mb-2">Approval</h3>
+                    <p className="text-sm text-muted-foreground">Get approval and loan disbursement</p>
+                  </div>
                 </div>
-                <Button 
-                  variant="outline" 
-                  className="w-full"
-                  onClick={() => handleViewLoan(loan)}
-                >
-                  View Details <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      )}
-      
-      {/* New Loan Application Dialog */}
-      <Dialog open={showNewLoanDialog} onOpenChange={setShowNewLoanDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Apply for a New Loan</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmitLoan} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="bank-select">Select Bank</Label>
-              <select
-                id="bank-select"
-                value={bankId}
-                onChange={(e) => setBankId(e.target.value)}
-                className="w-full p-2 border rounded-md"
-                required
-              >
-                <option value="">Select a Bank</option>
-                {banksList.map((bank) => (
-                  <option key={bank.id} value={bank.id}>
-                    {bank.bank_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="loan-amount">Loan Amount (₹)</Label>
-              <Input
-                id="loan-amount"
-                type="number"
-                value={loanAmount}
-                onChange={(e) => setLoanAmount(e.target.value)}
-                placeholder="Enter loan amount"
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="loan-purpose">Loan Purpose</Label>
-              <Textarea
-                id="loan-purpose"
-                value={loanPurpose}
-                onChange={(e) => setLoanPurpose(e.target.value)}
-                placeholder="Describe the purpose of this loan"
-                rows={3}
-                required
-              />
-            </div>
-            
-            {/* Document Uploaders */}
-            <div className="space-y-4">
-              <h3 className="font-medium">Required Documents</h3>
-              
-              {userId && (
-                <>
-                  <DocumentUploader
-                    userId={userId}
-                    documentType="Income Proof"
-                    onUpload={(url) => setIncomeProofUrl(url || null)}
-                    allowedTypes=".jpg,.jpeg,.png,.pdf"
-                  />
-                  
-                  <DocumentUploader
-                    userId={userId}
-                    documentType="Collateral Proof"
-                    onUpload={(url) => setCollateralProofUrl(url || null)}
-                    allowedTypes=".jpg,.jpeg,.png,.pdf"
-                  />
-                </>
-              )}
-            </div>
-            
-            <div className="flex justify-end space-x-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowNewLoanDialog(false)}
-              >
-                Cancel
+
+            <div className="flex gap-4">
+              <Button onClick={() => setActiveTab("apply")} className="flex-1">
+                <Plus className="mr-2 h-4 w-4" />
+                Apply for Loan
               </Button>
-              <Button
-                type="submit"
-                disabled={submittingLoan || !incomeProofUrl || !collateralProofUrl}
-              >
-                {submittingLoan ? "Submitting..." : "Submit Application"}
+              <Button variant="outline" onClick={() => setActiveTab("applications")} className="flex-1">
+                <List className="mr-2 h-4 w-4" />
+                View Applications
               </Button>
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Loan Details Dialog */}
-      {selectedLoan && (
-        <Dialog open={showLoanDetailsDialog} onOpenChange={setShowLoanDetailsDialog}>
-          <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Loan Details</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-medium">₹{selectedLoan.loan_amount.toLocaleString("en-IN")}</h3>
-                <Badge className={
-                  selectedLoan.status === "approved" ? "bg-green-100 text-green-800" :
-                  selectedLoan.status === "rejected" ? "bg-red-100 text-red-800" :
-                  "bg-yellow-100 text-yellow-800"
-                }>
-                  {selectedLoan.status.toUpperCase()}
-                </Badge>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Date Applied</p>
-                  <p>{new Date(selectedLoan.created_at).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">{isBank ? "Applicant" : "Bank"}</p>
-                  <p>{isBank ? selectedLoan.borrower_name : selectedLoan.bank_name}</p>
-                </div>
-              </div>
-              
-              <div>
-                <p className="text-sm text-gray-500">Loan Purpose</p>
-                <p className="mt-1">{selectedLoan.loan_purpose}</p>
-              </div>
-              
-              <Separator />
-              
-              <div className="space-y-3">
-                <h4 className="font-medium">Supporting Documents</h4>
-                {selectedLoan.documents?.income_proof && (
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Income Proof</p>
-                    <a 
-                      href={selectedLoan.documents.income_proof} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline text-sm flex items-center"
-                    >
-                      View Document <ArrowRight className="ml-1 h-3 w-3" />
-                    </a>
-                  </div>
-                )}
-                
-                {selectedLoan.documents?.collateral_proof && (
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Collateral Proof</p>
-                    <a 
-                      href={selectedLoan.documents.collateral_proof} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline text-sm flex items-center"
-                    >
-                      View Document <ArrowRight className="ml-1 h-3 w-3" />
-                    </a>
-                  </div>
-                )}
-              </div>
-              
-              {isBank && selectedLoan.status === "pending" && (
-                <>
-                  <Separator />
-                  <div className="flex justify-end space-x-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => updateLoanStatus(selectedLoan.id, "rejected")}
-                      className="border-red-200 hover:bg-red-50 text-red-600"
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Reject
-                    </Button>
-                    <Button
-                      onClick={() => updateLoanStatus(selectedLoan.id, "approved")}
-                      className="bg-green-600 hover:bg-green-700"
-                    >
-                      <Check className="mr-2 h-4 w-4" />
-                      Approve
-                    </Button>
-                  </div>
-                </>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+          </TabsContent>
+
+          <TabsContent value="apply">
+            {userId && (
+              <LoanApplicationForm 
+                userId={userId} 
+                onApplicationSubmitted={handleApplicationSubmitted}
+              />
+            )}
+          </TabsContent>
+
+          <TabsContent value="applications">
+            {userId && (
+              <LoanApplicationsList 
+                userId={userId} 
+                refreshTrigger={refreshTrigger}
+              />
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 };

@@ -41,26 +41,6 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     setProgress(0);
     
     try {
-      // Check if bucket exists, create if not
-      const { data: buckets, error: bucketsError } = await supabase
-        .storage
-        .listBuckets();
-      
-      if (bucketsError) {
-        throw new Error(`Error checking buckets: ${bucketsError.message}`);
-      }
-      
-      const userDocumentsBucket = buckets?.find(b => b.name === 'user_documents');
-      
-      if (!userDocumentsBucket) {
-        toast({
-          title: "Storage Error",
-          description: "Storage bucket not found. Please contact support.",
-          variant: "destructive",
-        });
-        throw new Error("Storage bucket 'user_documents' not found");
-      }
-      
       // Create a sanitized filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${documentType.replace(/\s+/g, '_')}_${new Date().getTime()}.${fileExt}`;
@@ -87,7 +67,10 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       
       clearInterval(progressInterval);
       
-      if (error) throw error;
+      if (error) {
+        console.error("Upload error:", error);
+        throw new Error(error.message);
+      }
       
       // Set progress to 100% when complete
       setProgress(100);
@@ -121,6 +104,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     setFile(null);
     setUploadedUrl(null);
     onUpload(null);
+    setProgress(0);
     if (inputRef.current) {
       inputRef.current.value = "";
     }

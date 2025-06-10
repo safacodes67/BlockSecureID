@@ -1,14 +1,13 @@
 
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/hooks/use-toast";
-import { ethers } from "ethers";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { User, Lock, Loader2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { generateMnemonic } from "@/lib/blockchain";
+import FacialRecognitionPrompt from "@/components/kyc/FacialRecognitionPrompt";
 
 interface SignupFormProps {
   userType: "user" | "bank";
@@ -16,347 +15,300 @@ interface SignupFormProps {
 
 export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [mobile, setMobile] = useState("");
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [showFacePrompt, setShowFacePrompt] = useState(false);
+  const [newUserId, setNewUserId] = useState<string | null>(null);
+  
+  // User form state
+  const [userName, setUserName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [userMobile, setUserMobile] = useState("");
+  const [userPassword, setUserPassword] = useState("");
+  
+  // Bank form state
   const [bankName, setBankName] = useState("");
   const [branchName, setBranchName] = useState("");
   const [ifscCode, setIfscCode] = useState("");
   const [managerCode, setManagerCode] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [mnemonic, setMnemonic] = useState<string | null>(null);
-  const [wallet, setWallet] = useState<string | null>(null);
+  const [bankPassword, setBankPassword] = useState("");
 
-  // Function to generate a mnemonic and wallet address
-  const generateCredentials = () => {
-    try {
-      // Generate a random mnemonic (24 words entropy by default)
-      const mnemonic = ethers.Wallet.createRandom().mnemonic?.phrase;
-      if (!mnemonic) throw new Error("Failed to generate mnemonic");
-      
-      // Create a wallet from the mnemonic
-      const wallet = ethers.Wallet.fromPhrase(mnemonic);
-      
-      setMnemonic(mnemonic);
-      setWallet(wallet.address);
-      
-      return { mnemonic, wallet: wallet.address };
-    } catch (error) {
-      console.error("Error generating credentials:", error);
-      setError("Failed to generate blockchain credentials. Please try again.");
-      return null;
-    }
-  };
-
-  // Validate manager code
-  const validateManagerCode = async (code: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("manager_codes")
-        .select("*")
-        .eq("code", code)
-        .eq("used", false)
-        .single();
-      
-      if (error || !data) {
-        return false;
-      }
-      return true;
-    } catch (error) {
-      return false;
-    }
-  };
-
-  // Mark manager code as used
-  const markManagerCodeAsUsed = async (code: string) => {
-    try {
-      await supabase
-        .from("manager_codes")
-        .update({ used: true })
-        .eq("code", code);
-    } catch (error) {
-      console.error("Error marking manager code as used:", error);
-    }
-  };
-
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleUserSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setLoading(true);
-    
+
     try {
-      // Validate passwords match
-      if (password !== confirmPassword) {
-        setError("Passwords do not match");
-        setLoading(false);
-        return;
+      if (!userName || !userEmail || !userMobile || !userPassword) {
+        throw new Error("Please fill in all fields");
       }
 
-      // Validate password strength
-      if (password.length < 6) {
-        setError("Password must be at least 6 characters long");
-        setLoading(false);
-        return;
-      }
+      // Generate mnemonic phrase for the user
+      const mnemonicPhrase = generateMnemonic();
+      
+      // Create user in Supabase database
+      const { data, error } = await supabase
+        .from("user_identities")
+        .insert({
+          name: userName,
+          email: userEmail,
+          mobile: userMobile,
+          mnemonic_phrase: mnemonicPhrase,
+        })
+        .select()
+        .single();
 
-      if (userType === "bank") {
-        // Validate manager code for bank signup
-        const isValidCode = await validateManagerCode(managerCode);
-        if (!isValidCode) {
-          setError("Invalid or already used manager code");
-          setLoading(false);
-          return;
-        }
-      }
+      if (error) throw error;
 
-      // Generate blockchain credentials
-      const credentials = generateCredentials();
-      if (!credentials) {
-        setLoading(false);
-        return;
-      }
-
-      // Sign up with Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (authError) {
-        throw authError;
-      }
-
-      if (!authData.user) {
-        throw new Error("Signup failed. Please try again.");
-      }
-
-      // Store user or bank data in respective tables
-      if (userType === "user") {
-        const { error: identityError } = await supabase
-          .from("user_identities")
-          .insert({
-            name,
-            email,
-            mobile,
-            mnemonic_phrase: credentials.mnemonic,
-            wallet_address: credentials.wallet,
-          });
-
-        if (identityError) {
-          throw identityError;
-        }
-
-        // Store in localStorage for easy access
-        localStorage.setItem(
-          "userAuth",
-          JSON.stringify({
-            name,
-            email,
-            mnemonic: credentials.mnemonic,
-            wallet: credentials.wallet,
-          })
-        );
-      } else {
-        // For bank account
-        const { error: bankError } = await supabase
-          .from("bank_entities")
-          .insert({
-            bank_name: bankName,
-            branch_name: branchName,
-            ifsc_code: ifscCode,
-            manager_code: managerCode,
-            mnemonic_phrase: credentials.mnemonic,
-            wallet_address: credentials.wallet,
-          });
-
-        if (bankError) {
-          throw bankError;
-        }
-
-        // Mark manager code as used
-        await markManagerCodeAsUsed(managerCode);
-
-        // Store in localStorage for easy access
-        localStorage.setItem(
-          "bankAuth",
-          JSON.stringify({
-            name: bankName,
-            branch: branchName,
-            mnemonic: credentials.mnemonic,
-            wallet: credentials.wallet,
-          })
-        );
-      }
+      // Store auth info in localStorage
+      const authData = {
+        id: data.id,
+        name: userName,
+        email: userEmail,
+        mobile: userMobile,
+        type: "user"
+      };
+      localStorage.setItem("userAuth", JSON.stringify(authData));
 
       toast({
-        title: "Account created!",
-        description: "You have successfully created an account.",
+        title: "Account Created Successfully",
+        description: "Welcome to BlockSecure ID! Your account has been created.",
       });
 
-      // Redirect to dashboard
-      navigate("/dashboard");
+      // Set up facial recognition prompt
+      setNewUserId(data.id);
+      setShowFacePrompt(true);
 
     } catch (error: any) {
       console.error("Signup error:", error);
-      setError(error.message || "An error occurred during signup");
+      toast({
+        title: "Signup Failed",
+        description: error.message || "Failed to create account",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
+  const handleBankSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (!bankName || !branchName || !ifscCode || !managerCode || !bankPassword) {
+        throw new Error("Please fill in all fields");
+      }
+
+      // Verify manager code
+      const { data: managerData, error: managerError } = await supabase
+        .from("manager_codes")
+        .select("*")
+        .eq("code", managerCode)
+        .eq("used", false)
+        .single();
+
+      if (managerError || !managerData) {
+        throw new Error("Invalid or already used manager code");
+      }
+
+      // Generate mnemonic phrase for the bank
+      const mnemonicPhrase = generateMnemonic();
+      
+      // Create bank entity
+      const { data, error } = await supabase
+        .from("bank_entities")
+        .insert({
+          bank_name: bankName,
+          branch_name: branchName,
+          ifsc_code: ifscCode,
+          manager_code: managerCode,
+          mnemonic_phrase: mnemonicPhrase,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Mark manager code as used
+      await supabase
+        .from("manager_codes")
+        .update({ used: true })
+        .eq("code", managerCode);
+
+      // Store auth info in localStorage
+      const authData = {
+        id: data.id,
+        name: bankName,
+        branch: branchName,
+        ifsc: ifscCode,
+        type: "bank"
+      };
+      localStorage.setItem("bankAuth", JSON.stringify(authData));
+
+      toast({
+        title: "Bank Account Created Successfully",
+        description: "Welcome to BlockSecure ID! Your bank account has been created.",
+      });
+
+      navigate("/dashboard");
+
+    } catch (error: any) {
+      console.error("Bank signup error:", error);
+      toast({
+        title: "Signup Failed",
+        description: error.message || "Failed to create bank account",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFaceRecognitionComplete = () => {
+    setShowFacePrompt(false);
+    navigate("/dashboard");
+  };
+
+  const handleFaceRecognitionSkip = () => {
+    setShowFacePrompt(false);
+    navigate("/dashboard");
+  };
+
   return (
-    <form onSubmit={handleSignup} className="space-y-4">
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {userType === "user" ? (
-        // Individual user signup form
-        <>
-          <div className="grid gap-2">
-            <Label htmlFor="name">Full Name</Label>
-            <Input
-              id="name"
-              placeholder="John Doe"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="john@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="mobile">Mobile Number</Label>
-            <Input
-              id="mobile"
-              placeholder="+91 9999999999"
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-              required
-            />
-          </div>
-        </>
-      ) : (
-        // Bank signup form
-        <>
-          <div className="grid gap-2">
-            <Label htmlFor="bankName">Bank Name</Label>
-            <Input
-              id="bankName"
-              placeholder="State Bank of India"
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
-              required
-            />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="branchName">Branch Name</Label>
-            <Input
-              id="branchName"
-              placeholder="Mumbai Main"
-              value={branchName}
-              onChange={(e) => setBranchName(e.target.value)}
-              required
-            />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="ifscCode">IFSC Code</Label>
-            <Input
-              id="ifscCode"
-              placeholder="SBIN0001234"
-              value={ifscCode}
-              onChange={(e) => setIfscCode(e.target.value)}
-              required
-            />
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="managerCode">Manager Code</Label>
-            <Input
-              id="managerCode"
-              placeholder="Enter your manager code"
-              value={managerCode}
-              onChange={(e) => setManagerCode(e.target.value)}
-              required
-            />
-            <p className="text-xs text-muted-foreground">
-              This code was provided by the system admin
-            </p>
-          </div>
-          
-          <div className="grid gap-2">
-            <Label htmlFor="email">Manager Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="manager@bank.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-        </>
-      )}
-      
-      {/* Common password fields */}
-      <div className="grid gap-2">
-        <Label htmlFor="password">Password</Label>
-        <Input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-      </div>
-      
-      <div className="grid gap-2">
-        <Label htmlFor="confirmPassword">Confirm Password</Label>
-        <Input
-          id="confirmPassword"
-          type="password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-          required
-        />
-      </div>
-
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Creating account...
-          </>
-        ) : userType === "user" ? (
-          <>
-            <User className="mr-2 h-4 w-4" />
-            Create Individual Account
-          </>
+    <>
+      <div className="space-y-4">
+        {userType === "user" ? (
+          <form onSubmit={handleUserSignup} className="space-y-4">
+            <div>
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                type="text"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                placeholder="Enter your full name"
+                required
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={userEmail}
+                onChange={(e) => setUserEmail(e.target.value)}
+                placeholder="Enter your email"
+                required
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="mobile">Mobile Number</Label>
+              <Input
+                id="mobile"
+                type="tel"
+                value={userMobile}
+                onChange={(e) => setUserMobile(e.target.value)}
+                placeholder="Enter your mobile number"
+                required
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={userPassword}
+                onChange={(e) => setUserPassword(e.target.value)}
+                placeholder="Create a strong password"
+                required
+              />
+            </div>
+            
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Creating Account..." : "Create Account"}
+            </Button>
+          </form>
         ) : (
-          <>
-            <Lock className="mr-2 h-4 w-4" />
-            Create Bank Account
-          </>
+          <form onSubmit={handleBankSignup} className="space-y-4">
+            <div>
+              <Label htmlFor="bankName">Bank Name</Label>
+              <Input
+                id="bankName"
+                type="text"
+                value={bankName}
+                onChange={(e) => setBankName(e.target.value)}
+                placeholder="Enter bank name"
+                required
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="branchName">Branch Name</Label>
+              <Input
+                id="branchName"
+                type="text"
+                value={branchName}
+                onChange={(e) => setBranchName(e.target.value)}
+                placeholder="Enter branch name"
+                required
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="ifscCode">IFSC Code</Label>
+              <Input
+                id="ifscCode"
+                type="text"
+                value={ifscCode}
+                onChange={(e) => setIfscCode(e.target.value)}
+                placeholder="Enter IFSC code"
+                required
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="managerCode">Manager Code</Label>
+              <Input
+                id="managerCode"
+                type="text"
+                value={managerCode}
+                onChange={(e) => setManagerCode(e.target.value)}
+                placeholder="Enter manager authorization code"
+                required
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="bankPassword">Password</Label>
+              <Input
+                id="bankPassword"
+                type="password"
+                value={bankPassword}
+                onChange={(e) => setBankPassword(e.target.value)}
+                placeholder="Create a strong password"
+                required
+              />
+            </div>
+            
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Creating Bank Account..." : "Create Bank Account"}
+            </Button>
+          </form>
         )}
-      </Button>
-    </form>
+      </div>
+
+      {/* Facial Recognition Prompt */}
+      {showFacePrompt && newUserId && (
+        <FacialRecognitionPrompt
+          isOpen={showFacePrompt}
+          onClose={handleFaceRecognitionSkip}
+          userId={newUserId}
+          onComplete={handleFaceRecognitionComplete}
+        />
+      )}
+    </>
   );
 };
