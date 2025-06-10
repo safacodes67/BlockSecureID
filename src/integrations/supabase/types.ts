@@ -42,6 +42,65 @@ export type Database = {
         }
         Relationships: []
       }
+      loan_applications: {
+        Row: {
+          amount: number
+          applied_at: string
+          created_at: string
+          description: string | null
+          employment_type: string
+          id: string
+          monthly_income: number
+          purpose: string
+          reviewed_at: string | null
+          reviewer_notes: string | null
+          status: string
+          tenure_months: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          applied_at?: string
+          created_at?: string
+          description?: string | null
+          employment_type: string
+          id?: string
+          monthly_income: number
+          purpose: string
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          status?: string
+          tenure_months: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          applied_at?: string
+          created_at?: string
+          description?: string | null
+          employment_type?: string
+          id?: string
+          monthly_income?: number
+          purpose?: string
+          reviewed_at?: string | null
+          reviewer_notes?: string | null
+          status?: string
+          tenure_months?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_loan_applications_user_id"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_identities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       manager_codes: {
         Row: {
           code: string

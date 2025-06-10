@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle, XCircle, Clock, Eye, Trash2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, Trash2 } from "lucide-react";
 
 interface LoanApplication {
   id: string;
@@ -39,7 +39,7 @@ const LoanApplicationsList: React.FC<LoanApplicationsListProps> = ({ userId, ref
   const fetchApplications = async () => {
     try {
       const { data, error } = await supabase
-        .from('loan_applications')
+        .from('loan_applications' as any)
         .select('*')
         .eq('user_id', userId)
         .order('applied_at', { ascending: false });
@@ -61,7 +61,7 @@ const LoanApplicationsList: React.FC<LoanApplicationsListProps> = ({ userId, ref
   const handleRevokeAccess = async (applicationId: string) => {
     try {
       const { error } = await supabase
-        .from('loan_applications')
+        .from('loan_applications' as any)
         .update({ 
           status: 'revoked',
           reviewed_at: new Date().toISOString(),

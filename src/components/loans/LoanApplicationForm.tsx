@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { DollarSign, FileText } from "lucide-react";
+import { DollarSign } from "lucide-react";
 
 interface LoanApplicationFormProps {
   userId: string;
@@ -41,7 +41,7 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({ userId, onApp
 
     try {
       const { error } = await supabase
-        .from('loan_applications')
+        .from('loan_applications' as any)
         .insert({
           user_id: userId,
           amount: parseFloat(amount),
