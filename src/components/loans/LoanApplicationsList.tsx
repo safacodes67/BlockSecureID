@@ -6,20 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle, XCircle, Clock, Trash2 } from "lucide-react";
+import type { Database } from "@/integrations/supabase/types";
 
-interface LoanApplication {
-  id: string;
-  amount: number;
-  purpose: string;
-  tenure_months: number;
-  monthly_income: number;
-  employment_type: string;
-  description?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'revoked';
-  applied_at: string;
-  reviewed_at?: string;
-  reviewer_notes?: string;
-}
+type LoanApplication = Database['public']['Tables']['loan_applications']['Row'];
 
 interface LoanApplicationsListProps {
   userId: string;
