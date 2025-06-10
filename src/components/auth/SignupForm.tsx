@@ -7,7 +7,6 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateMnemonic } from "@/lib/blockchain";
-import FacialRecognitionPrompt from "@/components/kyc/FacialRecognitionPrompt";
 
 interface SignupFormProps {
   userType: "user" | "bank";
@@ -17,8 +16,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [showFacePrompt, setShowFacePrompt] = useState(false);
-  const [newUserId, setNewUserId] = useState<string | null>(null);
   
   // User form state
   const [userName, setUserName] = useState("");
@@ -42,10 +39,29 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
         throw new Error("Please fill in all fields");
       }
 
+      // First, create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userEmail,
+        password: userPassword,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: {
+            name: userName,
+            mobile: userMobile
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
+      if (!authData.user) {
+        throw new Error("Failed to create user account");
+      }
+
       // Generate mnemonic phrase for the user
       const mnemonicPhrase = generateMnemonic();
       
-      // Create user in Supabase database
+      // Create user in our database
       const { data, error } = await supabase
         .from("user_identities")
         .insert({
@@ -59,24 +75,22 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
 
       if (error) throw error;
 
-      // Store auth info in localStorage
-      const authData = {
+      // Store auth info in localStorage for immediate access
+      const authInfo = {
         id: data.id,
         name: userName,
         email: userEmail,
         mobile: userMobile,
         type: "user"
       };
-      localStorage.setItem("userAuth", JSON.stringify(authData));
+      localStorage.setItem("userAuth", JSON.stringify(authInfo));
 
       toast({
         title: "Account Created Successfully",
-        description: "Welcome to BlockSecure ID! Your account has been created.",
+        description: "Welcome to BlockSecure ID! Please check your email for verification.",
       });
 
-      // Set up facial recognition prompt
-      setNewUserId(data.id);
-      setShowFacePrompt(true);
+      navigate("/dashboard");
 
     } catch (error: any) {
       console.error("Signup error:", error);
@@ -111,6 +125,24 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
         throw new Error("Invalid or already used manager code");
       }
 
+      // Create auth user with bank email format
+      const bankEmail = `${ifscCode.toLowerCase()}@bank.blocksecure.com`;
+      
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: bankEmail,
+        password: bankPassword,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`,
+          data: {
+            bank_name: bankName,
+            branch_name: branchName,
+            ifsc_code: ifscCode
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
       // Generate mnemonic phrase for the bank
       const mnemonicPhrase = generateMnemonic();
       
@@ -136,14 +168,14 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
         .eq("code", managerCode);
 
       // Store auth info in localStorage
-      const authData = {
+      const authInfo = {
         id: data.id,
         name: bankName,
         branch: branchName,
         ifsc: ifscCode,
         type: "bank"
       };
-      localStorage.setItem("bankAuth", JSON.stringify(authData));
+      localStorage.setItem("bankAuth", JSON.stringify(authInfo));
 
       toast({
         title: "Bank Account Created Successfully",
@@ -164,151 +196,129 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
     }
   };
 
-  const handleFaceRecognitionComplete = () => {
-    setShowFacePrompt(false);
-    navigate("/dashboard");
-  };
-
-  const handleFaceRecognitionSkip = () => {
-    setShowFacePrompt(false);
-    navigate("/dashboard");
-  };
-
   return (
-    <>
-      <div className="space-y-4">
-        {userType === "user" ? (
-          <form onSubmit={handleUserSignup} className="space-y-4">
-            <div>
-              <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="Enter your full name"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={userEmail}
-                onChange={(e) => setUserEmail(e.target.value)}
-                placeholder="Enter your email"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="mobile">Mobile Number</Label>
-              <Input
-                id="mobile"
-                type="tel"
-                value={userMobile}
-                onChange={(e) => setUserMobile(e.target.value)}
-                placeholder="Enter your mobile number"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={userPassword}
-                onChange={(e) => setUserPassword(e.target.value)}
-                placeholder="Create a strong password"
-                required
-              />
-            </div>
-            
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating Account..." : "Create Account"}
-            </Button>
-          </form>
-        ) : (
-          <form onSubmit={handleBankSignup} className="space-y-4">
-            <div>
-              <Label htmlFor="bankName">Bank Name</Label>
-              <Input
-                id="bankName"
-                type="text"
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                placeholder="Enter bank name"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="branchName">Branch Name</Label>
-              <Input
-                id="branchName"
-                type="text"
-                value={branchName}
-                onChange={(e) => setBranchName(e.target.value)}
-                placeholder="Enter branch name"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="ifscCode">IFSC Code</Label>
-              <Input
-                id="ifscCode"
-                type="text"
-                value={ifscCode}
-                onChange={(e) => setIfscCode(e.target.value)}
-                placeholder="Enter IFSC code"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="managerCode">Manager Code</Label>
-              <Input
-                id="managerCode"
-                type="text"
-                value={managerCode}
-                onChange={(e) => setManagerCode(e.target.value)}
-                placeholder="Enter manager authorization code"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="bankPassword">Password</Label>
-              <Input
-                id="bankPassword"
-                type="password"
-                value={bankPassword}
-                onChange={(e) => setBankPassword(e.target.value)}
-                placeholder="Create a strong password"
-                required
-              />
-            </div>
-            
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Creating Bank Account..." : "Create Bank Account"}
-            </Button>
-          </form>
-        )}
-      </div>
-
-      {/* Facial Recognition Prompt */}
-      {showFacePrompt && newUserId && (
-        <FacialRecognitionPrompt
-          isOpen={showFacePrompt}
-          onClose={handleFaceRecognitionSkip}
-          userId={newUserId}
-          onComplete={handleFaceRecognitionComplete}
-        />
+    <div className="space-y-4">
+      {userType === "user" ? (
+        <form onSubmit={handleUserSignup} className="space-y-4">
+          <div>
+            <Label htmlFor="name">Full Name</Label>
+            <Input
+              id="name"
+              type="text"
+              value={userName}
+              onChange={(e) => setUserName(e.target.value)}
+              placeholder="Enter your full name"
+              required
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={userEmail}
+              onChange={(e) => setUserEmail(e.target.value)}
+              placeholder="Enter your email"
+              required
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="mobile">Mobile Number</Label>
+            <Input
+              id="mobile"
+              type="tel"
+              value={userMobile}
+              onChange={(e) => setUserMobile(e.target.value)}
+              placeholder="Enter your mobile number"
+              required
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              value={userPassword}
+              onChange={(e) => setUserPassword(e.target.value)}
+              placeholder="Create a strong password"
+              required
+            />
+          </div>
+          
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Creating Account..." : "Create Account"}
+          </Button>
+        </form>
+      ) : (
+        <form onSubmit={handleBankSignup} className="space-y-4">
+          <div>
+            <Label htmlFor="bankName">Bank Name</Label>
+            <Input
+              id="bankName"
+              type="text"
+              value={bankName}
+              onChange={(e) => setBankName(e.target.value)}
+              placeholder="Enter bank name"
+              required
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="branchName">Branch Name</Label>
+            <Input
+              id="branchName"
+              type="text"
+              value={branchName}
+              onChange={(e) => setBranchName(e.target.value)}
+              placeholder="Enter branch name"
+              required
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="ifscCode">IFSC Code</Label>
+            <Input
+              id="ifscCode"
+              type="text"
+              value={ifscCode}
+              onChange={(e) => setIfscCode(e.target.value)}
+              placeholder="Enter IFSC code"
+              required
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="managerCode">Manager Code</Label>
+            <Input
+              id="managerCode"
+              type="text"
+              value={managerCode}
+              onChange={(e) => setManagerCode(e.target.value)}
+              placeholder="Enter manager authorization code"
+              required
+            />
+          </div>
+          
+          <div>
+            <Label htmlFor="bankPassword">Password</Label>
+            <Input
+              id="bankPassword"
+              type="password"
+              value={bankPassword}
+              onChange={(e) => setBankPassword(e.target.value)}
+              placeholder="Create a strong password"
+              required
+            />
+          </div>
+          
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Creating Bank Account..." : "Create Bank Account"}
+          </Button>
+        </form>
       )}
-    </>
+    </div>
   );
 };

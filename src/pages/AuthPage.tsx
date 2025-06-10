@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User, Banknote } from "lucide-react";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { SignupForm } from "@/components/auth/SignupForm";
+import { supabase } from "@/integrations/supabase/client";
 
 interface LocationState {
   defaultTab?: string;
@@ -21,15 +22,32 @@ const AuthPage = () => {
   // Check for authenticated session
   useEffect(() => {
     const checkAuth = async () => {
+      // Check localStorage first
       const userAuth = localStorage.getItem("userAuth");
       const bankAuth = localStorage.getItem("bankAuth");
       
       if (userAuth || bankAuth) {
         navigate("/dashboard");
+        return;
+      }
+
+      // Also check Supabase session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/dashboard");
       }
     };
     
     checkAuth();
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        navigate("/dashboard");
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   return (

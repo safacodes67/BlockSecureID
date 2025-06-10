@@ -2,8 +2,7 @@
 import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowRight, User, Banknote, Wallet, Shield, Link, Camera, Home } from "lucide-react";
+import { ArrowRight, User, Banknote, Wallet, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { connectWallet, isMetaMaskInstalled } from "@/lib/blockchain";
 import { useToast } from "@/hooks/use-toast";
@@ -27,7 +26,18 @@ const HomePage = () => {
     
     if (userAuth || bankAuth) {
       navigate("/dashboard");
+      return;
     }
+
+    // Also check Supabase session
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/dashboard");
+      }
+    };
+
+    checkSession();
   }, [navigate]);
 
   // Handle wallet connection

@@ -25,7 +25,18 @@ const KYCPage = () => {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Get current session
+        // Check localStorage first for immediate access
+        const userAuth = localStorage.getItem("userAuth");
+        
+        if (userAuth) {
+          const userData = JSON.parse(userAuth);
+          setUserEmail(userData.email);
+          setUserId(userData.id);
+          setLoading(false);
+          return;
+        }
+
+        // Fallback to Supabase session
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
@@ -45,9 +56,9 @@ const KYCPage = () => {
           .from("user_identities")
           .select("id")
           .eq("email", session.user.email)
-          .single();
+          .maybeSingle();
           
-        if (userError) {
+        if (userError || !userData) {
           toast({
             title: "User Not Found",
             description: "Your user profile was not found in the system",

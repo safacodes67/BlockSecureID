@@ -34,6 +34,41 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     }
   };
 
+  const createBucketIfNotExists = async (bucketName: string) => {
+    try {
+      // Check if bucket exists
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+      
+      if (listError) {
+        console.error("Error listing buckets:", listError);
+        return false;
+      }
+
+      const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
+      
+      if (!bucketExists) {
+        // Create bucket
+        const { error: createError } = await supabase.storage.createBucket(bucketName, {
+          public: true,
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'],
+          fileSizeLimit: 5242880 // 5MB
+        });
+        
+        if (createError) {
+          console.error("Error creating bucket:", createError);
+          return false;
+        }
+        
+        console.log(`Created bucket: ${bucketName}`);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error("Error in createBucketIfNotExists:", error);
+      return false;
+    }
+  };
+
   const handleUpload = async () => {
     if (!file || !userId) return;
     
@@ -41,6 +76,15 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
     setProgress(0);
     
     try {
+      // Determine bucket name based on context
+      const bucketName = 'user_documents';
+      
+      // Ensure bucket exists
+      const bucketReady = await createBucketIfNotExists(bucketName);
+      if (!bucketReady) {
+        throw new Error("Failed to prepare storage bucket");
+      }
+      
       // Create a sanitized filename
       const fileExt = file.name.split('.').pop();
       const fileName = `${documentType.replace(/\s+/g, '_')}_${new Date().getTime()}.${fileExt}`;
@@ -59,7 +103,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       
       // Upload to Supabase Storage
       const { data, error } = await supabase.storage
-        .from('user_documents')
+        .from(bucketName)
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: true,
@@ -77,7 +121,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       
       // Get public URL
       const { data: publicUrlData } = supabase.storage
-        .from('user_documents')
+        .from(bucketName)
         .getPublicUrl(filePath);
       
       setUploadedUrl(publicUrlData.publicUrl);
@@ -92,7 +136,7 @@ const DocumentUploader: React.FC<DocumentUploaderProps> = ({
       console.error("Error uploading document:", error);
       toast({
         title: "Upload Failed",
-        description: error.message || "Failed to upload document",
+        description: error.message || "Failed to upload document. Please try again.",
         variant: "destructive",
       });
     } finally {
