@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +40,7 @@ const LoanApplicationForm: React.FC<LoanApplicationFormProps> = ({ userId, onApp
 
     try {
       const { error } = await supabase
-        .from('loan_applications' as any)
+        .from('loan_applications')
         .insert({
           user_id: userId,
           amount: parseFloat(amount),

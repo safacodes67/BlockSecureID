@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,7 +38,7 @@ const LoanApplicationsList: React.FC<LoanApplicationsListProps> = ({ userId, ref
   const fetchApplications = async () => {
     try {
       const { data, error } = await supabase
-        .from('loan_applications' as any)
+        .from('loan_applications')
         .select('*')
         .eq('user_id', userId)
         .order('applied_at', { ascending: false });
@@ -61,7 +60,7 @@ const LoanApplicationsList: React.FC<LoanApplicationsListProps> = ({ userId, ref
   const handleRevokeAccess = async (applicationId: string) => {
     try {
       const { error } = await supabase
-        .from('loan_applications' as any)
+        .from('loan_applications')
         .update({ 
           status: 'revoked',
           reviewed_at: new Date().toISOString(),
