@@ -39,6 +39,41 @@ export const getWalletFromMnemonic = (mnemonic: string): string => {
   }
 };
 
+// Function to create blockchain identity
+export const createBlockchainIdentity = async (userDetails: any) => {
+  try {
+    if (!window.ethereum) {
+      throw new Error("MetaMask is not installed");
+    }
+
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    
+    // Create a simple identity hash from user details
+    const identityData = JSON.stringify(userDetails);
+    const identityHash = ethers.keccak256(ethers.toUtf8Bytes(identityData));
+    
+    // In a real implementation, you would deploy a smart contract here
+    // For now, we'll simulate the blockchain transaction
+    const tx = await signer.sendTransaction({
+      to: await signer.getAddress(), // Self-transaction for demo
+      value: ethers.parseEther("0"), // No value transfer
+      data: identityHash // Include identity hash in transaction data
+    });
+    
+    await tx.wait();
+    
+    return {
+      transactionHash: tx.hash,
+      identityHash: identityHash,
+      did: `did:polygon:${identityHash.substring(0, 10)}...${identityHash.substring(identityHash.length - 4)}`
+    };
+  } catch (error) {
+    console.error("Error creating blockchain identity:", error);
+    throw error;
+  }
+};
+
 // Function to switch to Mumbai testnet
 export const switchToMumbaiNetwork = async () => {
   if (!window.ethereum) {

@@ -8,7 +8,8 @@ import { UserCircle, Upload, CheckCircle, Shield, AlertCircle, Key, FileText, Ca
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import FacialRecognition from "@/components/FacialRecognition";
 
 // Add custom types to match our Supabase schema
 interface UserIdentity {
@@ -43,6 +44,10 @@ const Identity = () => {
     transactionHash: string;
     name?: string;
     email?: string;
+    phone?: string;
+    aadharNumber?: string;
+    panNumber?: string;
+    walletAddress?: string;
     type?: "user" | "bank";
   } | null>(null);
   const [uploadedFiles, setUploadedFiles] = useState<{
@@ -55,6 +60,7 @@ const Identity = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [additionalDocName, setAdditionalDocName] = useState("");
   const [showFaceCapture, setShowFaceCapture] = useState(false);
+  const [faceRegistered, setFaceRegistered] = useState(false);
   const { toast } = useToast();
   
   // Check for existing identity on mount
@@ -80,16 +86,29 @@ const Identity = () => {
           .single();
         
         if (data) {
-          // User exists in database
-          setIdentityStatus("created");
-          setIdentityData({
-            type: "user",
-            did: `did:polygon:0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`,
-            name: data.name,
-            email: data.email,
-            createdOn: new Date(data.created_at).toLocaleDateString(),
-            transactionHash: `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
-          });
+          // Check if user has created blockchain identity
+          const hasBlockchainData = data.kyc_documents?.blockchain_identity;
+          
+          if (hasBlockchainData) {
+            setIdentityStatus("created");
+            setIdentityData({
+              type: "user",
+              did: data.kyc_documents.blockchain_identity.did || `did:polygon:0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`,
+              name: data.kyc_documents.name || data.name,
+              email: data.kyc_documents.email || data.email,
+              phone: data.kyc_documents.phone,
+              aadharNumber: data.kyc_documents.aadharNumber,
+              panNumber: data.kyc_documents.panNumber,
+              walletAddress: data.wallet_address,
+              createdOn: new Date(data.created_at).toLocaleDateString(),
+              transactionHash: data.kyc_documents.blockchain_identity.transactionHash || `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
+            });
+            
+            // Check if face is registered
+            setFaceRegistered(data.face_registered || false);
+          } else {
+            setIdentityStatus("not_created");
+          }
           
           // Load any stored documents
           loadUserDocuments(data.id);
@@ -341,25 +360,49 @@ const Identity = () => {
     }
   };
   
-  // Add the missing handleFacialRecognition function
+  // Handle facial recognition capture
   const handleFacialRecognition = () => {
-    // Open the facial recognition dialog
     setShowFaceCapture(true);
-    
-    // Simulate face capture success after a delay (in a real app, this would be an actual face capture process)
-    setTimeout(() => {
-      // Update the face registration status in the database
-      updateFaceRegistrationStatus();
+  };
+
+  const handleFaceCapture = async (imageData: string) => {
+    try {
+      const userAuth = localStorage.getItem("userAuth");
       
-      // Close the dialog
-      setShowFaceCapture(false);
-      
-      // Show success message
+      if (userAuth) {
+        const userData = JSON.parse(userAuth);
+        
+        // Store face data in Supabase
+        const { error } = await supabase
+          .from('user_identities')
+          .update({ 
+            face_registered: true,
+            kyc_documents: {
+              ...identityData,
+              faceData: imageData,
+              faceRegisteredAt: new Date().toISOString()
+            }
+          })
+          .eq('email', userData.email);
+
+        if (error) throw error;
+
+        setFaceRegistered(true);
+        setShowFaceCapture(false);
+        
+        toast({
+          title: "Face Registration Successful",
+          description: "Your face has been registered for account recovery.",
+        });
+      }
+    } catch (error) {
+      console.error("Error registering face:", error);
       toast({
-        title: "Face Registration Successful",
-        description: "Your face has been registered for account recovery.",
+        title: "Registration Failed",
+        description: "Failed to register facial data. Please try again.",
+        variant: "destructive",
       });
-    }, 3000); // Simulating a 3-second capture process
+    }
   };
   
   // Placeholder function to simulate creating identity
@@ -409,11 +452,11 @@ const Identity = () => {
               {identityStatus === "not_created" ? (
                 <div className="text-center py-8">
                   <UserCircle className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium">No Identity Found</h3>
+                  <h3 className="text-lg font-medium">No Blockchain Identity Found</h3>
                   <p className="text-muted-foreground mb-4">
-                    You haven't created your digital identity yet
+                    You haven't created your blockchain identity yet
                   </p>
-                  <Button onClick={() => window.location.href = '/'}>Create Identity</Button>
+                  <Button onClick={() => window.location.href = '/create-identity'}>Create Blockchain Identity</Button>
                 </div>
               ) : identityStatus === "creating" ? (
                 <div className="text-center py-8">
@@ -430,7 +473,7 @@ const Identity = () => {
                       <CheckCircle className="h-6 w-6 text-green-500" />
                     </div>
                     <div>
-                      <p className="font-medium">{identityData?.type === "bank" ? "Bank Identity" : "Identity"} Verified</p>
+                      <p className="font-medium">Blockchain Identity Verified</p>
                       <p className="text-sm text-muted-foreground">Your digital identity is active on the blockchain</p>
                     </div>
                   </div>
@@ -439,11 +482,11 @@ const Identity = () => {
                     <div className="grid grid-cols-3 gap-4 text-sm">
                       <div>
                         <p className="text-muted-foreground">DID Identifier</p>
-                        <p className="font-mono">{identityData?.did || "did:polygon:0x3ab...e45f"}</p>
+                        <p className="font-mono">{identityData?.did}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Created On</p>
-                        <p>{identityData?.createdOn || "May 3, 2025"}</p>
+                        <p>{identityData?.createdOn}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Status</p>
@@ -453,23 +496,33 @@ const Identity = () => {
                     
                     <div>
                       <p className="text-muted-foreground">Transaction Hash</p>
-                      <p className="font-mono">{identityData?.transactionHash || "0x7d8c9a4b5f6e7d8c9a4b5f6e7d8c9a4b5f6e7d8c"}</p>
+                      <p className="font-mono text-xs break-all">{identityData?.transactionHash}</p>
                     </div>
                     
-                    {identityData?.type === "user" && identityData?.name && (
+                    {identityData?.walletAddress && (
                       <div>
-                        <p className="text-muted-foreground">User Information</p>
-                        <p><strong>Name:</strong> {identityData.name}</p>
-                        {identityData.email && <p><strong>Email:</strong> {identityData.email}</p>}
+                        <p className="text-muted-foreground">Wallet Address</p>
+                        <p className="font-mono text-xs break-all">{identityData.walletAddress}</p>
                       </div>
                     )}
                     
-                    {identityData?.type === "bank" && identityData?.name && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                       <div>
-                        <p className="text-muted-foreground">Bank Information</p>
-                        <p><strong>Bank Name:</strong> {identityData.name}</p>
+                        <p className="text-muted-foreground">Personal Information</p>
+                        <div className="space-y-1 text-sm">
+                          <p><strong>Name:</strong> {identityData?.name}</p>
+                          <p><strong>Email:</strong> {identityData?.email}</p>
+                          <p><strong>Phone:</strong> {identityData?.phone}</p>
+                        </div>
                       </div>
-                    )}
+                      <div>
+                        <p className="text-muted-foreground">Identity Documents</p>
+                        <div className="space-y-1 text-sm">
+                          <p><strong>Aadhar:</strong> {identityData?.aadharNumber ? `****${identityData.aadharNumber.slice(-4)}` : 'Not provided'}</p>
+                          <p><strong>PAN:</strong> {identityData?.panNumber ? `****${identityData.panNumber.slice(-4)}` : 'Not provided'}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   
                   <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
@@ -684,10 +737,22 @@ const Identity = () => {
                   <p className="text-sm text-muted-foreground mb-4">
                     Register your face to enable account recovery if you forget your password and recovery phrase.
                   </p>
-                  <Button onClick={handleFacialRecognition} variant="outline" className="flex items-center gap-2">
-                    <Camera className="h-4 w-4" />
-                    Register Face for Recovery
-                  </Button>
+                  <div className="flex items-center gap-4">
+                    <Button 
+                      onClick={handleFacialRecognition} 
+                      variant={faceRegistered ? "outline" : "default"}
+                      className="flex items-center gap-2"
+                    >
+                      <Camera className="h-4 w-4" />
+                      {faceRegistered ? "Update Face Registration" : "Register Face for Recovery"}
+                    </Button>
+                    {faceRegistered && (
+                      <div className="flex items-center gap-2 text-green-600">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="text-sm">Face Registered</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 
                 {/* Recovery Options */}
@@ -753,24 +818,10 @@ const Identity = () => {
           <DialogHeader>
             <DialogTitle>Face Recognition Setup</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 text-center">
-            <div className="w-full h-64 bg-gray-100 rounded-md border-2 border-dashed border-gray-300 flex items-center justify-center">
-              <Camera className="h-20 w-20 text-gray-400 animate-pulse" />
-            </div>
-            <p className="text-sm">
-              Position your face in the center of the frame to register for account recovery.
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Your face data is encrypted and stored securely for verification purposes only.
-            </p>
-            <Button 
-              variant="outline" 
-              className="w-full"
-              onClick={() => setShowFaceCapture(false)}
-            >
-              Cancel
-            </Button>
-          </div>
+          <FacialRecognition 
+            onCapture={handleFaceCapture}
+            onClose={() => setShowFaceCapture(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>
@@ -778,3 +829,5 @@ const Identity = () => {
 };
 
 export default Identity;
+
+</edits_to_apply>

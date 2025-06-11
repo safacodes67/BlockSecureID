@@ -2,7 +2,7 @@
 import React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Shield, FileCheck, Flag, Search, UserCircle, ArrowRight } from "lucide-react";
+import { Shield, FileCheck, Flag, Search, UserCircle, ArrowRight, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Dashboard = () => {
@@ -23,7 +23,10 @@ const Dashboard = () => {
           </p>
           <div className="flex flex-wrap gap-4">
             <Button asChild className="bg-white text-purple-700 hover:bg-gray-100 hover:text-purple-800">
-              <Link to="/identity">Create Your Identity <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              <Link to="/create-identity">
+                <Plus className="mr-2 h-4 w-4" />
+                Create My Identity
+              </Link>
             </Button>
             <Button asChild variant="outline" className="border-white text-white hover:bg-white/10">
               <Link to="/url-checker">Check URL Security</Link>
