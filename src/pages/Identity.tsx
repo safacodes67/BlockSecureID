@@ -21,6 +21,7 @@ interface UserIdentity {
   mnemonic_phrase: string;
   wallet_address?: string;
   face_registered?: boolean;
+  kyc_documents?: any;
 }
 
 interface BankEntity {
@@ -33,6 +34,7 @@ interface BankEntity {
   mnemonic_phrase: string;
   wallet_address?: string;
   face_registered?: boolean;
+  kyc_documents?: any;
 }
 
 const Identity = () => {

@@ -16,6 +16,7 @@ export type Database = {
           created_at: string
           id: string
           ifsc_code: string
+          kyc_documents: Json | null
           manager_code: string | null
           mnemonic_phrase: string
           wallet_address: string | null
@@ -26,6 +27,7 @@ export type Database = {
           created_at?: string
           id?: string
           ifsc_code: string
+          kyc_documents?: Json | null
           manager_code?: string | null
           mnemonic_phrase: string
           wallet_address?: string | null
@@ -36,6 +38,7 @@ export type Database = {
           created_at?: string
           id?: string
           ifsc_code?: string
+          kyc_documents?: Json | null
           manager_code?: string | null
           mnemonic_phrase?: string
           wallet_address?: string | null
@@ -128,6 +131,7 @@ export type Database = {
           email: string
           face_registered: boolean | null
           id: string
+          kyc_documents: Json | null
           mnemonic_phrase: string
           mobile: string
           name: string
@@ -138,6 +142,7 @@ export type Database = {
           email: string
           face_registered?: boolean | null
           id?: string
+          kyc_documents?: Json | null
           mnemonic_phrase: string
           mobile: string
           name: string
@@ -148,6 +153,7 @@ export type Database = {
           email?: string
           face_registered?: boolean | null
           id?: string
+          kyc_documents?: Json | null
           mnemonic_phrase?: string
           mobile?: string
           name?: string

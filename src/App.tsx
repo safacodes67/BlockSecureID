@@ -35,7 +35,7 @@ function App() {
             <Route path="/auth" element={<AuthPage />} />
             
             {/* Protected routes with layout */}
-            <Route element={<MainLayout />}>
+            <Route path="/" element={<MainLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/identity" element={<Identity />} />
               <Route path="/create-identity" element={<CreateIdentity />} />

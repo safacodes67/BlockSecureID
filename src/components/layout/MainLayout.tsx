@@ -3,17 +3,14 @@ import React from "react";
 import { Sidebar } from "./Sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Outlet } from "react-router-dom";
 
-interface MainLayoutProps {
-  children: React.ReactNode;
-}
-
-const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+const MainLayout: React.FC = () => {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
       <div className="flex-1 p-4 md:p-8">
-        {children}
+        <Outlet />
       </div>
       <Toaster />
       <Sonner />
