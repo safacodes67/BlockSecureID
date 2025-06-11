@@ -21,23 +21,27 @@ const AuthPage = () => {
   const [activeTab, setActiveTab] = useState(state?.defaultTab || "login");
   const [userType, setUserType] = useState<"user" | "bank">("user");
   const [showRecovery, setShowRecovery] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Check for authenticated session
+  // Check for authenticated session only once on mount
   useEffect(() => {
     const checkAuth = async () => {
-      // Check localStorage first
-      const userAuth = localStorage.getItem("userAuth");
-      const bankAuth = localStorage.getItem("bankAuth");
-      
-      if (userAuth || bankAuth) {
-        navigate("/dashboard");
-        return;
-      }
-
-      // Also check Supabase session
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate("/dashboard");
+      try {
+        // Only check Supabase session, not localStorage during signup flow
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        // Only redirect if there's an active session and user is not trying to sign up
+        if (session && activeTab === "login") {
+          navigate("/dashboard");
+          return;
+        }
+        
+        // If there's a session but user is on signup tab, don't redirect
+        // This allows users to complete signup flow
+      } catch (error) {
+        console.error("Auth check error:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
     
@@ -45,19 +49,31 @@ const AuthPage = () => {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
+      // Only redirect on successful sign in, not during signup process
+      if (event === 'SIGNED_IN' && session && activeTab === "login") {
         navigate("/dashboard");
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, activeTab]);
 
   if (showRecovery) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-purple-900 flex items-center justify-center py-12 px-4">
         <div className="max-w-md w-full">
           <PasswordRecovery onBack={() => setShowRecovery(false)} />
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state briefly
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-purple-900 flex items-center justify-center py-12 px-4">
+        <div className="max-w-md w-full text-center text-white">
+          Loading...
         </div>
       </div>
     );

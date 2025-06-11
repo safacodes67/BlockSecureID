@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,27 +46,10 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
       const mnemonicPhrase = generateMnemonic();
       setGeneratedMnemonic(mnemonicPhrase);
 
-      // First, create auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: userEmail,
-        password: userPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
-          data: {
-            name: userName,
-            mobile: userMobile
-          }
-        }
-      });
+      console.log("Starting user signup process...");
 
-      if (authError) throw authError;
-
-      if (!authData.user) {
-        throw new Error("Failed to create user account");
-      }
-
-      // Create user in our database
-      const { data, error } = await supabase
+      // Create user in our database first (without auth)
+      const { data: userData, error: userError } = await supabase
         .from("user_identities")
         .insert({
           name: userName,
@@ -76,11 +60,16 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (userError) {
+        console.error("User creation error:", userError);
+        throw userError;
+      }
+
+      console.log("User created successfully:", userData);
 
       // Store auth info in localStorage for immediate access
       const authInfo = {
-        id: data.id,
+        id: userData.id,
         name: userName,
         email: userEmail,
         mobile: userMobile,
@@ -117,6 +106,8 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
         throw new Error("Please fill in all fields");
       }
 
+      console.log("Starting bank signup process...");
+
       // Verify manager code
       const { data: managerData, error: managerError } = await supabase
         .from("manager_codes")
@@ -133,26 +124,8 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
       const mnemonicPhrase = generateMnemonic();
       setGeneratedMnemonic(mnemonicPhrase);
 
-      // Create auth user with bank email format
-      const bankEmail = `${ifscCode.toLowerCase()}@bank.blocksecure.com`;
-      
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: bankEmail,
-        password: bankPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
-          data: {
-            bank_name: bankName,
-            branch_name: branchName,
-            ifsc_code: ifscCode
-          }
-        }
-      });
-
-      if (authError) throw authError;
-
       // Create bank entity
-      const { data, error } = await supabase
+      const { data: bankData, error: bankError } = await supabase
         .from("bank_entities")
         .insert({
           bank_name: bankName,
@@ -164,7 +137,12 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (bankError) {
+        console.error("Bank creation error:", bankError);
+        throw bankError;
+      }
+
+      console.log("Bank created successfully:", bankData);
 
       // Mark manager code as used
       await supabase
@@ -174,7 +152,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
 
       // Store auth info in localStorage
       const authInfo = {
-        id: data.id,
+        id: bankData.id,
         name: bankName,
         branch: branchName,
         ifsc: ifscCode,
