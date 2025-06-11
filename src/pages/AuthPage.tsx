@@ -3,10 +3,12 @@ import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Banknote } from "lucide-react";
+import { User, Banknote, ArrowLeft } from "lucide-react";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { SignupForm } from "@/components/auth/SignupForm";
+import PasswordRecovery from "@/components/auth/PasswordRecovery";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 
 interface LocationState {
   defaultTab?: string;
@@ -18,6 +20,7 @@ const AuthPage = () => {
   const state = location.state as LocationState;
   const [activeTab, setActiveTab] = useState(state?.defaultTab || "login");
   const [userType, setUserType] = useState<"user" | "bank">("user");
+  const [showRecovery, setShowRecovery] = useState(false);
 
   // Check for authenticated session
   useEffect(() => {
@@ -49,6 +52,16 @@ const AuthPage = () => {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
+
+  if (showRecovery) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-purple-900 flex items-center justify-center py-12 px-4">
+        <div className="max-w-md w-full">
+          <PasswordRecovery onBack={() => setShowRecovery(false)} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-purple-900 flex items-center justify-center py-12 px-4">
@@ -91,6 +104,15 @@ const AuthPage = () => {
               {/* Login Form Tab */}
               <TabsContent value="login">
                 <LoginForm userType={userType} />
+                <div className="mt-4 text-center">
+                  <Button 
+                    variant="link" 
+                    onClick={() => setShowRecovery(true)}
+                    className="text-sm text-gray-600 hover:text-gray-800"
+                  >
+                    Forgot password? Use recovery phrase
+                  </Button>
+                </div>
               </TabsContent>
               
               {/* Sign Up Form Tab */}

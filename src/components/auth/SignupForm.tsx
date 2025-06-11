@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { generateMnemonic } from "@/lib/blockchain";
+import MnemonicDisplay from "./MnemonicDisplay";
 
 interface SignupFormProps {
   userType: "user" | "bank";
@@ -16,6 +16,8 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [showMnemonic, setShowMnemonic] = useState(false);
+  const [generatedMnemonic, setGeneratedMnemonic] = useState("");
   
   // User form state
   const [userName, setUserName] = useState("");
@@ -39,6 +41,10 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
         throw new Error("Please fill in all fields");
       }
 
+      // Generate mnemonic phrase for the user
+      const mnemonicPhrase = generateMnemonic();
+      setGeneratedMnemonic(mnemonicPhrase);
+
       // First, create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: userEmail,
@@ -58,9 +64,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
         throw new Error("Failed to create user account");
       }
 
-      // Generate mnemonic phrase for the user
-      const mnemonicPhrase = generateMnemonic();
-      
       // Create user in our database
       const { data, error } = await supabase
         .from("user_identities")
@@ -87,10 +90,11 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
 
       toast({
         title: "Account Created Successfully",
-        description: "Welcome to BlockSecure ID! Please check your email for verification.",
+        description: "Please save your recovery phrase safely!",
       });
 
-      navigate("/dashboard");
+      // Show mnemonic instead of navigating directly
+      setShowMnemonic(true);
 
     } catch (error: any) {
       console.error("Signup error:", error);
@@ -125,6 +129,10 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
         throw new Error("Invalid or already used manager code");
       }
 
+      // Generate mnemonic phrase for the bank
+      const mnemonicPhrase = generateMnemonic();
+      setGeneratedMnemonic(mnemonicPhrase);
+
       // Create auth user with bank email format
       const bankEmail = `${ifscCode.toLowerCase()}@bank.blocksecure.com`;
       
@@ -143,9 +151,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
 
       if (authError) throw authError;
 
-      // Generate mnemonic phrase for the bank
-      const mnemonicPhrase = generateMnemonic();
-      
       // Create bank entity
       const { data, error } = await supabase
         .from("bank_entities")
@@ -179,10 +184,11 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
 
       toast({
         title: "Bank Account Created Successfully",
-        description: "Welcome to BlockSecure ID! Your bank account has been created.",
+        description: "Please save your recovery phrase safely!",
       });
 
-      navigate("/dashboard");
+      // Show mnemonic instead of navigating directly
+      setShowMnemonic(true);
 
     } catch (error: any) {
       console.error("Bank signup error:", error);
@@ -195,6 +201,19 @@ export const SignupForm: React.FC<SignupFormProps> = ({ userType }) => {
       setLoading(false);
     }
   };
+
+  const handleContinueAfterMnemonic = () => {
+    navigate("/dashboard");
+  };
+
+  if (showMnemonic) {
+    return (
+      <MnemonicDisplay 
+        mnemonic={generatedMnemonic} 
+        onContinue={handleContinueAfterMnemonic}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
