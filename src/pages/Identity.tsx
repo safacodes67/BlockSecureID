@@ -37,6 +37,21 @@ interface BankEntity {
   kyc_documents?: any;
 }
 
+// Type for KYC documents structure
+interface KYCDocuments {
+  blockchain_identity?: {
+    did?: string;
+    transactionHash?: string;
+  };
+  name?: string;
+  email?: string;
+  phone?: string;
+  aadharNumber?: string;
+  panNumber?: string;
+  faceData?: string;
+  faceRegisteredAt?: string;
+}
+
 const Identity = () => {
   const [selectedTab, setSelectedTab] = useState("overview");
   const [identityStatus, setIdentityStatus] = useState<"not_created" | "creating" | "created">("not_created");
@@ -88,22 +103,25 @@ const Identity = () => {
           .single();
         
         if (data) {
+          // Safely cast kyc_documents to our expected type
+          const kycDocs = data.kyc_documents as KYCDocuments | null;
+          
           // Check if user has created blockchain identity
-          const hasBlockchainData = data.kyc_documents?.blockchain_identity;
+          const hasBlockchainData = kycDocs?.blockchain_identity;
           
           if (hasBlockchainData) {
             setIdentityStatus("created");
             setIdentityData({
               type: "user",
-              did: data.kyc_documents.blockchain_identity.did || `did:polygon:0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`,
-              name: data.kyc_documents.name || data.name,
-              email: data.kyc_documents.email || data.email,
-              phone: data.kyc_documents.phone,
-              aadharNumber: data.kyc_documents.aadharNumber,
-              panNumber: data.kyc_documents.panNumber,
+              did: kycDocs.blockchain_identity?.did || `did:polygon:0x${Math.random().toString(16).slice(2, 10)}...${Math.random().toString(16).slice(2, 6)}`,
+              name: kycDocs.name || data.name,
+              email: kycDocs.email || data.email,
+              phone: kycDocs.phone,
+              aadharNumber: kycDocs.aadharNumber,
+              panNumber: kycDocs.panNumber,
               walletAddress: data.wallet_address,
               createdOn: new Date(data.created_at).toLocaleDateString(),
-              transactionHash: data.kyc_documents.blockchain_identity.transactionHash || `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
+              transactionHash: kycDocs.blockchain_identity?.transactionHash || `0x${Array.from({length: 40}, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
             });
             
             // Check if face is registered
