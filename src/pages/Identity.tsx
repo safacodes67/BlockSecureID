@@ -20,7 +20,7 @@ interface UserIdentity {
   mobile: string;
   mnemonic_phrase: string;
   wallet_address?: string;
-  face_registered?: boolean;  // Add this property to match our usage
+  face_registered?: boolean;
 }
 
 interface BankEntity {
@@ -32,7 +32,7 @@ interface BankEntity {
   manager_code: string;
   mnemonic_phrase: string;
   wallet_address?: string;
-  face_registered?: boolean;  // Add this property to match our usage
+  face_registered?: boolean;
 }
 
 const Identity = () => {
@@ -829,5 +829,3 @@ const Identity = () => {
 };
 
 export default Identity;
-
-</edits_to_apply>
